@@ -1,0 +1,24 @@
+{
+  "schema_version": "omnitrace.contract.v1",
+  "service_name": "checkout-frontend",
+  "service_type": "consumer",
+  "language": "typescript",
+  "repository": "d:\\OT\\samples\\checkout-frontend",
+  "version": "1.0.0",
+  "routes": [],
+  "consumer_calls": [
+    {
+      "target_path": "/api/v1/users/${userId}",
+      "normalized_path": "/api/v1/users/{param}",
+      "method": "GET",
+      "source_file": "src\\UserProfile.tsx",
+      "line_number": 15,
+      "caller_component": "UserProfile",
+      "expected_fields": [
+        "id",
+        "email",
+        "is_active"
+      ]
+    }
+  ]
+}

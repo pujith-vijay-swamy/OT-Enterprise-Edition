@@ -1,0 +1,114 @@
+{
+  "schema_version": "omnitrace.contract.v1",
+  "service_name": "user-service-v1",
+  "service_type": "producer",
+  "language": "python",
+  "repository": "d:\\OT\\samples\\user-service-v1",
+  "version": "1.0.0",
+  "routes": [
+    {
+      "path": "/api/v1/users/{user_id}",
+      "normalized_path": "/api/v1/users/{param}",
+      "method": "GET",
+      "handler_name": "get_user_profile",
+      "source_file": "main.py",
+      "line_number": 18,
+      "path_params": [
+        {
+          "name": "user_id",
+          "param_type": "str",
+          "required": true,
+          "default": null
+        }
+      ],
+      "request_schema": null,
+      "response_schema": {
+        "raw_type": "object",
+        "fields": [
+          {
+            "name": "id",
+            "field_type": "str",
+            "required": true,
+            "description": ""
+          },
+          {
+            "name": "email",
+            "field_type": "str",
+            "required": true,
+            "description": ""
+          },
+          {
+            "name": "is_active",
+            "field_type": "bool",
+            "required": true,
+            "description": ""
+          },
+          {
+            "name": "role",
+            "field_type": "str",
+            "required": false,
+            "description": ""
+          }
+        ]
+      }
+    },
+    {
+      "path": "/api/v1/users",
+      "normalized_path": "/api/v1/users",
+      "method": "POST",
+      "handler_name": "create_user",
+      "source_file": "main.py",
+      "line_number": 25,
+      "path_params": [
+        {
+          "name": "payload",
+          "param_type": "UserCreateRequest",
+          "required": true,
+          "default": null
+        }
+      ],
+      "request_schema": null,
+      "response_schema": {
+        "raw_type": "object",
+        "fields": [
+          {
+            "name": "id",
+            "field_type": "str",
+            "required": true,
+            "description": ""
+          },
+          {
+            "name": "email",
+            "field_type": "str",
+            "required": true,
+            "description": ""
+          },
+          {
+            "name": "is_active",
+            "field_type": "bool",
+            "required": true,
+            "description": ""
+          },
+          {
+            "name": "role",
+            "field_type": "str",
+            "required": false,
+            "description": ""
+          }
+        ]
+      }
+    },
+    {
+      "path": "/api/v1/health",
+      "normalized_path": "/api/v1/health",
+      "method": "GET",
+      "handler_name": "health_check",
+      "source_file": "main.py",
+      "line_number": 30,
+      "path_params": [],
+      "request_schema": null,
+      "response_schema": null
+    }
+  ],
+  "consumer_calls": []
+}
