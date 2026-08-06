@@ -4,11 +4,8 @@
   "description": "OmniTrace AI — Cross-Repository API Observability & PR Governance Platform",
   "private": true,
   "scripts": {
-    "dev": "concurrently -k -n \"UI,ENGINE\" -c \"cyan,yellow\" \"npm --prefix web run dev\" \"python engine/omnitrace/server.py\"",
-    "web": "npm --prefix web run dev",
+    "dev": "npx -y concurrently -k -n \"UI,ENGINE\" -c \"cyan,yellow\" \"cd web && npm run dev\" \"python engine/omnitrace/server.py\"",
+    "web": "cd web && npm run dev",
     "engine": "python engine/omnitrace/server.py"
-  },
-  "devDependencies": {
-    "concurrently": "^8.2.2"
   }
 }

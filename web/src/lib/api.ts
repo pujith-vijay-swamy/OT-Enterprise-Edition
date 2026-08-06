@@ -44,20 +44,26 @@ export interface WorkflowInstallResult {
 
 export async function checkEngineHealth(): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/health`, { cache: 'no-store' });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1500);
+    const res = await fetch(`${API_BASE}/health`, { cache: 'no-store', signal: controller.signal });
+    clearTimeout(timer);
     if (res.ok) {
       const data: HealthCheckResponse = await res.json();
       return data.status === 'ok';
     }
   } catch (e) {
-    // Engine server is offline
+    // Engine server is offline or timed out
   }
   return false;
 }
 
 export async function fetchGitHubSession(): Promise<GitHubSession> {
   try {
-    const res = await fetch(`${API_BASE}/auth/github/me`, { cache: 'no-store' });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1500);
+    const res = await fetch(`${API_BASE}/auth/github/me`, { cache: 'no-store', signal: controller.signal });
+    clearTimeout(timer);
     if (res.ok) {
       return await res.json();
     }

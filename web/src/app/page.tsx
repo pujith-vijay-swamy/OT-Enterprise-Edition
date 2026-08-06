@@ -39,37 +39,39 @@ export default function Dashboard() {
   // Persistent Node Positions state preserved across tab switches
   const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>({});
 
-  // Check Python API Server engine status & GitHub Session
+  // Check Python API Server engine status & GitHub Session concurrently
   useEffect(() => {
+    let isMounted = true;
+
     const verifyHealth = async () => {
-      const isOnline = await checkEngineHealth();
-      setEngineOnline(isOnline);
-      if (isOnline) {
+      try {
+        const [isOnline, session] = await Promise.all([
+          checkEngineHealth(),
+          fetchGitHubSession()
+        ]);
+
+        if (!isMounted) return;
+
+        setEngineOnline(isOnline);
+        if (session && session.authenticated) {
+          setGithubSession(session);
+        }
+
         const params = new URLSearchParams(window.location.search);
-        const githubConnected = params.get('github_connected');
-        
-        let token = '';
-        const match = document.cookie.match(new RegExp('(?:^|; )omnitrace_github_token=([^;]+)'));
-        if (match) {
-          token = match[1];
-        }
-
-        if (token) {
-          const session = await loginGitHubToken(token);
-          setGithubSession(session);
-        } else {
-          const session = await fetchGitHubSession();
-          setGithubSession(session);
-        }
-
-        if (githubConnected) {
+        if (params.get('github_connected')) {
           window.history.replaceState({}, document.title, window.location.pathname);
         }
+      } catch (e) {
+        if (isMounted) setEngineOnline(false);
       }
     };
+
     verifyHealth();
-    const interval = setInterval(verifyHealth, 10000);
-    return () => clearInterval(interval);
+    const interval = setInterval(verifyHealth, 15000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   const handleLoginGitHub = async () => {
