@@ -1,0 +1,14 @@
+{
+  "name": "omnitrace-enterprise",
+  "version": "2.4.0",
+  "description": "OmniTrace AI — Cross-Repository API Observability & PR Governance Platform",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -k -n \"UI,ENGINE\" -c \"cyan,yellow\" \"npm --prefix web run dev\" \"python engine/omnitrace/server.py\"",
+    "web": "npm --prefix web run dev",
+    "engine": "python engine/omnitrace/server.py"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
