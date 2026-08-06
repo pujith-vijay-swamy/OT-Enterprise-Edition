@@ -1,0 +1,29 @@
+name: OmniTrace PR API Governance
+
+on:
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  omnitrace-ast-gate:
+    name: OmniTrace AST Boundary & Schema Drift Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run OmniTrace CLI AST PR Gate
+        run: |
+          python -m pip install --upgrade pip
+          python engine/omnitrace/cli.py pr-check --head samples/user-service-v2 --out-md pr_comment.md
+
+      - name: Post Sticky GitHub PR Governance Comment
+        if: always()
+        uses: pyx/sticky-pull-request-comment@v2
+        with:
+          path: pr_comment.md
