@@ -4,10 +4,15 @@ on:
   pull_request:
     branches: [ main, master, develop ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   omnitrace-ast-gate:
     name: OmniTrace AST Boundary & Schema Drift Check
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout Codebase
         uses: actions/checkout@v4
