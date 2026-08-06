@@ -201,7 +201,7 @@ jobs:
 
       - name: Post Sticky GitHub PR Governance Comment
         if: always()
-        uses: pyx/sticky-pull-request-comment@v2
+        uses: marocchino/sticky-pull-request-comment@v2
         with:
           path: pr_comment.md
 """

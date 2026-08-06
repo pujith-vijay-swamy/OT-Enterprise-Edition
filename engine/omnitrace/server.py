@@ -200,7 +200,13 @@ def resolve_repo_path(raw_path: str, custom_name: str = "") -> Tuple[str, str, s
                     return sample_fallback, service_name, cleaned
                 raise ValueError(f"Failed to clone GitHub repository '{raw_path}': {res.stderr}")
         else:
-            print(f"[OmniTrace Engine] Using cached GitHub repository at {local_target_dir}")
+            print(f"[OmniTrace Engine] Fetching latest commit for cached GitHub repository at {local_target_dir}")
+            try:
+                subprocess.run(["git", "fetch", "origin"], cwd=local_target_dir, capture_output=True, timeout=10)
+                subprocess.run(["git", "reset", "--hard", "origin/main"], cwd=local_target_dir, capture_output=True, timeout=10)
+                subprocess.run(["git", "reset", "--hard", "origin/master"], cwd=local_target_dir, capture_output=True, timeout=10)
+            except Exception as pull_err:
+                print(f"[OmniTrace Engine] Git sync warning: {pull_err}")
 
         return local_target_dir, service_name, cleaned
 
@@ -210,14 +216,17 @@ def resolve_repo_path(raw_path: str, custom_name: str = "") -> Tuple[str, str, s
 class RequestHandler(BaseHTTPRequestHandler):
 
     def send_json_response(self, status_code: int, data: Any):
-        self.send_response(status_code)
-        self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.send_header('Access-Control-Max-Age', '86400')
-        self.end_headers()
-        self.wfile.write(json.dumps(data).encode('utf-8'))
+        try:
+            self.send_response(status_code)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+            self.send_header('Access-Control-Max-Age', '86400')
+            self.end_headers()
+            self.wfile.write(json.dumps(data).encode('utf-8'))
+        except (ConnectionAbortedError, BrokenPipeError, OSError):
+            pass
 
     def do_OPTIONS(self):
         self.send_response(200)
@@ -372,7 +381,7 @@ jobs:
 
       - name: Post Sticky GitHub PR Governance Comment
         if: always()
-        uses: pyx/sticky-pull-request-comment@v2
+        uses: marocchino/sticky-pull-request-comment@v2
         with:
           path: pr_comment.md
 """
@@ -459,7 +468,29 @@ jobs:
                         print(f"Warning: Directory or GitHub repo '{raw_dir}' resolved to non-existent path '{resolved_dir}'. Skipping.")
                         continue
 
-                    # 1. First check if omnitrace.contract.json exists directly in resolved_dir
+                    # Perform live AST parsing across directory for up-to-date schema definitions
+                    py_files = []
+                    ts_files = []
+                    for root, _, files in os.walk(resolved_dir):
+                        if ".git" in root or "node_modules" in root or "__pycache__" in root or "cache" in root:
+                            continue
+                        for f in files:
+                            if f.endswith(".py"):
+                                py_files.append(os.path.join(root, f))
+                            elif f.endswith((".js", ".ts", ".tsx", ".jsx")):
+                                ts_files.append(os.path.join(root, f))
+
+                    if py_files or ts_files:
+                        if len(py_files) >= len(ts_files):
+                            parser = PythonASTParser()
+                        else:
+                            parser = TypeScriptASTParser()
+                        contract = parser.parse_directory(resolved_dir, service_name=s_name or os.path.basename(resolved_dir))
+                        contract.repository = repo_label
+                        all_contracts.append(contract)
+                        continue
+
+                    # Fallback to omnitrace.contract.json if no source files found
                     contract_json_path = os.path.join(resolved_dir, "omnitrace.contract.json")
                     if os.path.exists(contract_json_path):
                         try:
@@ -471,18 +502,6 @@ jobs:
                             continue
                         except Exception as e:
                             print(f"Error loading contract JSON from {contract_json_path}: {e}")
-
-                    # 2. Otherwise perform live AST parsing across directory
-                    py_files = []
-                    ts_files = []
-                    for root, _, files in os.walk(resolved_dir):
-                        if ".git" in root or "node_modules" in root or "__pycache__" in root or "cache" in root:
-                            continue
-                        for f in files:
-                            if f.endswith(".py"):
-                                py_files.append(os.path.join(root, f))
-                            elif f.endswith((".js", ".ts", ".tsx", ".jsx")):
-                                ts_files.append(os.path.join(root, f))
 
                     if len(py_files) >= len(ts_files):
                         parser = PythonASTParser()
