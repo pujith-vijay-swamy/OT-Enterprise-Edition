@@ -369,6 +369,12 @@ jobs:
       - name: Checkout Codebase
         uses: actions/checkout@v4
 
+      - name: Checkout OmniTrace Engine Core
+        uses: actions/checkout@v4
+        with:
+          repository: pujith-vijay-swamy/OT-Enterprise-Edition
+          path: omnitrace_engine
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -376,8 +382,7 @@ jobs:
 
       - name: Run OmniTrace CLI AST PR Gate
         run: |
-          python -m pip install --upgrade pip
-          python engine/omnitrace/cli.py pr-check --head ./ --out-md pr_comment.md
+          python omnitrace_engine/engine/omnitrace/cli.py pr-check --head ./ --out-md pr_comment.md
 
       - name: Post Sticky GitHub PR Governance Comment
         if: always()
