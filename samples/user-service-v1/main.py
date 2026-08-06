@@ -19,7 +19,7 @@ def get_user_profile(user_id: str):
     """Retrieve user details by unique identifier"""
     if user_id == "404":
         raise HTTPException(status_code=404, detail="User not found")
-    return UserResponse(id=user_id, email="alice@omnitrace.io", is_active=True, role="admin")
+    return UserResponse(id=user_id, email="alice@repotrace.io", is_active=True, role="admin")
 
 @app.post("/api/v1/users", response_model=UserResponse)
 def create_user(payload: UserCreateRequest):

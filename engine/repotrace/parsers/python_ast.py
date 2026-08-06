@@ -1,11 +1,11 @@
 import ast
 import os
 from typing import List, Dict, Any, Optional
-from omnitrace.ir import (
+from repotrace.ir import (
     EndpointRoute, RouteParam, PayloadSchema, SchemaField,
     ServiceContract, ConsumerCall, normalize_route_path
 )
-from omnitrace.parsers.base import BaseParser
+from repotrace.parsers.base import BaseParser
 
 class PythonASTParser(BaseParser):
     """

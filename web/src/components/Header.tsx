@@ -78,7 +78,7 @@ export const Header: React.FC<HeaderProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base font-extrabold text-white tracking-wider uppercase">
-                  OMNITRACE AI
+                  REPOTRACE AI
                 </h1>
                 <span className="text-[9.5px] font-bold px-2 py-0.5 bg-[#171717] text-cyan-400 border border-[#404040]">
                   ENTERPRISE v2.4

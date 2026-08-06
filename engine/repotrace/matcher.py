@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Any, Optional
-from omnitrace.ir import ServiceContract, EndpointRoute, ConsumerCall, normalize_route_path
+from repotrace.ir import ServiceContract, EndpointRoute, ConsumerCall, normalize_route_path
 
 @dataclass
 class ServiceDependencyEdge:

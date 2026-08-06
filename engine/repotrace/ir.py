@@ -197,7 +197,7 @@ class ServiceContract:
     version: str = "1.0.0"
     routes: List[EndpointRoute] = field(default_factory=list)
     consumer_calls: List[ConsumerCall] = field(default_factory=list)
-    schema_version: str = "omnitrace.contract.v1"
+    schema_version: str = "repotrace.contract.v1"
 
     def to_dict(self) -> Dict[str, Any]:
         return {

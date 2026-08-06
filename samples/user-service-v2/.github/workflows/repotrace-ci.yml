@@ -1,4 +1,4 @@
-name: OmniTrace PR API Governance
+name: RepoTrace PR API Governance
 
 on:
   pull_request:
@@ -9,28 +9,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  omnitrace-ast-gate:
-    name: OmniTrace AST Boundary & Schema Drift Check
+  repotrace-ast-gate:
+    name: RepoTrace AST Boundary & Schema Drift Check
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Checkout Codebase
         uses: actions/checkout@v4
 
-      - name: Checkout OmniTrace Engine Core
+      - name: Checkout RepoTrace Engine Core
         uses: actions/checkout@v4
         with:
           repository: pujith-vijay-swamy/OT-Enterprise-Edition
-          path: omnitrace_engine
+          path: repotrace_engine
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Run OmniTrace CLI AST PR Gate
+      - name: Run RepoTrace CLI AST PR Gate
         run: |
-          python omnitrace_engine/engine/omnitrace/cli.py pr-check --head ./ --out-md pr_comment.md
+          python repotrace_engine/engine/repotrace/cli.py pr-check --head ./ --out-md pr_comment.md
 
       - name: Post Sticky GitHub PR Governance Comment
         if: always()
@@ -45,7 +45,7 @@ jobs:
                 repo: context.repo.repo,
                 issue_number: context.payload.pull_request.number,
               });
-              const botComment = comments.find(c => c.body.includes('OmniTrace AI'));
+              const botComment = comments.find(c => c.body.includes('RepoTrace AI'));
               if (botComment) {
                 await github.rest.issues.updateComment({
                   owner: context.repo.owner,

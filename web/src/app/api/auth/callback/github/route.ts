@@ -51,7 +51,7 @@ export async function GET(request: Request) {
 
     // Set cookie and redirect back to homepage
     const response = NextResponse.redirect(`${appUrl}/?github_connected=true`);
-    response.cookies.set('omnitrace_github_token', accessToken, {
+    response.cookies.set('repotrace_github_token', accessToken, {
       path: '/',
       maxAge: 60 * 60 * 24 * 30, // 30 days
       httpOnly: false,

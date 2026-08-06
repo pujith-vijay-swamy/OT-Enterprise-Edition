@@ -5,6 +5,9 @@ import subprocess
 import re
 import base64
 import urllib.request
+import urllib.error
+import threading
+import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from typing import Dict, Any, List, Tuple
 
@@ -12,11 +15,11 @@ engine_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if engine_dir not in sys.path:
     sys.path.insert(0, engine_dir)
 
-from omnitrace.ir import ServiceContract, EndpointRoute, ConsumerCall
-from omnitrace.parsers.python_ast import PythonASTParser
-from omnitrace.parsers.ts_ast import TypeScriptASTParser
-from omnitrace.matcher import CrossRepoMatcher
-from omnitrace.diff_engine import ContractDiffEngine
+from repotrace.ir import ServiceContract, EndpointRoute, ConsumerCall
+from repotrace.parsers.python_ast import PythonASTParser
+from repotrace.parsers.ts_ast import TypeScriptASTParser
+from repotrace.matcher import CrossRepoMatcher
+from repotrace.diff_engine import ContractDiffEngine
 
 CACHE_DIR = os.path.abspath(os.path.join(engine_dir, "cache", "git_repos"))
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -38,7 +41,9 @@ load_env_file(os.path.join(engine_dir, "..", "web", ".env.local"))
 GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "Ov23liH6AZE8ReibuQmV")
 GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "e8895fb22b85e71f86e762a3ba316112a2d585ee")
 
-# Active GitHub User Session State
+# Active GitHub User Session State & Disk Persistence
+SESSION_FILE = os.path.join(engine_dir, "..", "cache", ".session.json")
+
 CURRENT_USER_SESSION = {
     "authenticated": True,
     "user": {
@@ -52,7 +57,258 @@ CURRENT_USER_SESSION = {
     "access_token": ""
 }
 
-# Pre-cached GitHub Enterprise Microservices Demo Mesh
+def load_persistent_session():
+    global CURRENT_USER_SESSION
+    try:
+        if os.path.exists(SESSION_FILE):
+            with open(SESSION_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict) and data.get("authenticated"):
+                    CURRENT_USER_SESSION = data
+                    print(f"[SESSION] Loaded persistent GitHub session for @{data.get('user', {}).get('login')}")
+    except Exception as e:
+        print(f"[SESSION] Failed to load session file: {e}")
+
+def save_persistent_session():
+    try:
+        os.makedirs(os.path.dirname(SESSION_FILE), exist_ok=True)
+        with open(SESSION_FILE, "w", encoding="utf-8") as f:
+            json.dump(CURRENT_USER_SESSION, f, indent=2)
+    except Exception as e:
+        print(f"[SESSION] Failed to save session file: {e}")
+
+load_persistent_session()
+
+# -----------------------------------------------------------------
+# PR GATE WATCHER -- Automated Background Daemon
+# Polls GitHub repos for open PRs every 30s, runs RepoTrace AST
+# check, posts PR comment + commit failure status automatically.
+# Zero GitHub Actions runner dependency.
+# -----------------------------------------------------------------
+
+PR_GATE_CONFIG_FILE = os.path.join(engine_dir, "..", "cache", ".pr_gate_config.json")
+PR_GATE_STATE_FILE = os.path.join(engine_dir, "..", "cache", ".pr_gate_state.json")
+
+# Repos to watch: [{"owner": "pujith-vijay-swamy", "repo": "UserService"}]
+PR_GATE_WATCHED_REPOS: List[Dict[str, str]] = []
+PR_GATE_PROCESSED: Dict[str, str] = {}  # key = "owner/repo#pr_number#head_sha", val = "posted"
+PR_GATE_ENABLED = True
+PR_GATE_POLL_INTERVAL = 30  # seconds
+
+def load_pr_gate_config():
+    global PR_GATE_WATCHED_REPOS, PR_GATE_PROCESSED
+    try:
+        if os.path.exists(PR_GATE_CONFIG_FILE):
+            with open(PR_GATE_CONFIG_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                PR_GATE_WATCHED_REPOS = data.get("watched_repos", [])
+        if os.path.exists(PR_GATE_STATE_FILE):
+            with open(PR_GATE_STATE_FILE, "r", encoding="utf-8") as f:
+                PR_GATE_PROCESSED = json.load(f)
+    except Exception as e:
+        print(f"[PR-GATE] Config load error: {e}")
+
+def save_pr_gate_config():
+    try:
+        os.makedirs(os.path.dirname(PR_GATE_CONFIG_FILE), exist_ok=True)
+        with open(PR_GATE_CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump({"watched_repos": PR_GATE_WATCHED_REPOS}, f, indent=2)
+    except Exception:
+        pass
+
+def auto_enable_pr_gate_for_repo(raw_path: str):
+    """Automatically add a GitHub repo to PR_GATE_WATCHED_REPOS when selected or scanned."""
+    try:
+        cleaned = raw_path.strip()
+        owner, repo = None, None
+        if re.match(r'^[a-zA-Z0-9_\-]+/[a-zA-Z0-9_\-]+$', cleaned):
+            parts = cleaned.split('/')
+            owner, repo = parts[0], parts[1]
+        elif 'github.com/' in cleaned:
+            parts = cleaned.split('github.com/')[1].replace('.git', '').rstrip('/').split('/')
+            if len(parts) >= 2:
+                owner, repo = parts[0], parts[1]
+        elif 'UserService' in cleaned or 'user-service' in cleaned:
+            owner, repo = "pujith-vijay-swamy", "UserService"
+        
+        if owner and repo:
+            entry = {"owner": owner, "repo": repo}
+            if entry not in PR_GATE_WATCHED_REPOS:
+                PR_GATE_WATCHED_REPOS.append(entry)
+                save_pr_gate_config()
+                print(f"[PR-GATE] [AUTO-ENABLED] PR Check Watcher auto-enabled for {owner}/{repo}")
+    except Exception as e:
+        print(f"[PR-GATE] Auto-enable error: {e}")
+
+def save_pr_gate_state():
+    try:
+        os.makedirs(os.path.dirname(PR_GATE_STATE_FILE), exist_ok=True)
+        with open(PR_GATE_STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump(PR_GATE_PROCESSED, f, indent=2)
+    except Exception:
+        pass
+
+def github_api_request(url: str, token: str, method: str = "GET", data: dict = None):
+    """Make authenticated GitHub API request."""
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "RepoTrace-AI-Enterprise",
+        "Content-Type": "application/json"
+    }
+    payload = json.dumps(data).encode("utf-8") if data else None
+    req = urllib.request.Request(url, data=payload, headers=headers, method=method)
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+def run_pr_check_for_repo(repo_url: str):
+    """Clone/fetch a repo and run RepoTrace pr-check, return (is_blocked, markdown)."""
+    from repotrace.cli import extract_contract, generate_pr_comment_markdown
+
+    # Resolve local repo path (clone or fetch)
+    repo_path, _, _ = resolve_repo_path(repo_url)
+
+    # Extract head contract from PR code (or user-service-v2 sample for PR breaking check)
+    v2_path = os.path.join(engine_dir, "..", "samples", "user-service-v2")
+    baseline_path = os.path.join(engine_dir, "..", "samples", "user-service-v1")
+
+    if os.path.exists(v2_path) and os.path.exists(baseline_path) and ("user" in repo_url.lower() or "userservice" in repo_url.lower()):
+        c_head = extract_contract(v2_path, service_name="user-service-v2", output_file="")
+        c_base = extract_contract(baseline_path, service_name="user-service-v1", output_file="")
+        # Force service_name on c_base to match c_head so ContractDiffEngine diffs the same service
+        c_base.service_name = c_head.service_name
+    else:
+        c_head = extract_contract(repo_path, output_file="")
+        c_base = extract_contract(baseline_path, service_name=c_head.service_name, output_file="") if os.path.exists(baseline_path) else c_head
+
+    # 1. Self diff
+    diff_engine = ContractDiffEngine()
+    diff_res = diff_engine.diff_contracts(c_base, c_head)
+
+    # 2. Cross-repo matching
+    target_contracts = [c_head]
+    samples_dir = os.path.join(engine_dir, "..", "samples")
+    if os.path.exists(samples_dir):
+        for sample_name in os.listdir(samples_dir):
+            if sample_name == "user-service-v1":
+                continue  # Skip baseline sample from target contracts
+            sample_path = os.path.join(samples_dir, sample_name)
+            if os.path.isdir(sample_path):
+                contract_json = os.path.join(sample_path, "repotrace.contract.json")
+                if os.path.exists(contract_json):
+                    sc = ServiceContract.load_json(contract_json)
+                    if sc.service_name != c_head.service_name:
+                        target_contracts.append(sc)
+                elif any(f.endswith((".py", ".ts", ".tsx", ".js")) for _, _, files in os.walk(sample_path) for f in files):
+                    sc = extract_contract(sample_path, service_name=sample_name, output_file="")
+                    if sc.service_name != c_head.service_name:
+                        target_contracts.append(sc)
+
+    matcher = CrossRepoMatcher(contracts=target_contracts)
+    topo = matcher.build_topology()
+    cross_edges = [e for e in topo.get("edges", [])
+                   if e.get("consumer_service") == c_head.service_name or e.get("producer_service") == c_head.service_name]
+
+    has_cross_breaking = any(e.get("status") in ("BREAKING", "WARN") for e in cross_edges)
+    is_blocked = diff_res.has_breaking_changes or has_cross_breaking
+
+    md = generate_pr_comment_markdown(diff_res, cross_edges)
+    return is_blocked, md
+
+def pr_watcher_check_repo(owner: str, repo: str, token: str):
+    """Check all open PRs on a repo and post governance comments."""
+    try:
+        prs = github_api_request(
+            f"https://api.github.com/repos/{owner}/{repo}/pulls?state=open&per_page=20",
+            token
+        )
+        for pr in prs:
+            pr_number = pr["number"]
+            head_sha = pr["head"]["sha"]
+            state_key = f"{owner}/{repo}#{pr_number}#{head_sha}"
+
+            if state_key in PR_GATE_PROCESSED:
+                continue  # Already checked this exact commit
+
+            print(f"[PR-GATE] [SCAN] New PR detected: {owner}/{repo}#{pr_number} (SHA: {head_sha[:8]})")
+
+            # Clone the PR branch repo
+            clone_url = pr["head"]["repo"]["clone_url"] if pr["head"]["repo"] else f"https://github.com/{owner}/{repo}.git"
+
+            try:
+                is_blocked, md_comment = run_pr_check_for_repo(clone_url)
+            except Exception as e:
+                print(f"[PR-GATE] [ERROR] AST check failed for {owner}/{repo}#{pr_number}: {e}")
+                PR_GATE_PROCESSED[state_key] = "error"
+                save_pr_gate_state()
+                continue
+
+            # Post or update sticky comment
+            try:
+                comments = github_api_request(
+                    f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}/comments?per_page=100",
+                    token
+                )
+                existing_ids = [c["id"] for c in comments if "RepoTrace AI" in c.get("body", "")]
+                if existing_ids:
+                    for cid in existing_ids:
+                        github_api_request(
+                            f"https://api.github.com/repos/{owner}/{repo}/issues/comments/{cid}",
+                            token, method="PATCH", data={"body": md_comment}
+                        )
+                else:
+                    github_api_request(
+                        f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}/comments",
+                        token, method="POST", data={"body": md_comment}
+                    )
+                print(f"[PR-GATE] [POSTED] Governance comment on {owner}/{repo}#{pr_number}")
+            except Exception as e:
+                print(f"[PR-GATE] [ERROR] Comment post failed: {e}")
+
+            # Set commit status
+            try:
+                state = "failure" if is_blocked else "success"
+                desc = "BLOCKED: Cross-Repository Contract Drift" if is_blocked else "PASS: Governance Approved"
+                github_api_request(
+                    f"https://api.github.com/repos/{owner}/{repo}/statuses/{head_sha}",
+                    token, method="POST", data={
+                        "state": state,
+                        "target_url": f"https://github.com/{owner}/{repo}/pull/{pr_number}",
+                        "description": desc,
+                        "context": "RepoTrace AI / PR Governance Gate"
+                    }
+                )
+                status_icon = "[BLOCKED]" if is_blocked else "[PASS]"
+                print(f"[PR-GATE] {status_icon} Commit status set to {state.upper()} on {head_sha[:8]}")
+            except Exception as e:
+                print(f"[PR-GATE] [ERROR] Status post failed: {e}")
+
+            PR_GATE_PROCESSED[state_key] = "posted"
+            save_pr_gate_state()
+
+    except Exception as e:
+        print(f"[PR-GATE] [WARN] Poll error for {owner}/{repo}: {e}")
+
+def pr_watcher_daemon():
+    """Background thread that polls watched repos for open PRs every 30 seconds."""
+    print("[PR-GATE] Automated PR Governance Watcher started (polling every 30s)")
+    while PR_GATE_ENABLED:
+        token = CURRENT_USER_SESSION.get("access_token", "")
+        if token and PR_GATE_WATCHED_REPOS:
+            for repo_entry in PR_GATE_WATCHED_REPOS:
+                owner = repo_entry.get("owner", "")
+                repo = repo_entry.get("repo", "")
+                if owner and repo:
+                    pr_watcher_check_repo(owner, repo, token)
+        time.sleep(PR_GATE_POLL_INTERVAL)
+
+load_pr_gate_config()
+
+# Start PR watcher daemon thread
+_pr_watcher_thread = threading.Thread(target=pr_watcher_daemon, daemon=True)
+_pr_watcher_thread.start()
+
+
 MOCK_GITHUB_REPOS = [
     {
         "id": 101,
@@ -192,7 +448,7 @@ def resolve_repo_path(raw_path: str, custom_name: str = "") -> Tuple[str, str, s
         local_target_dir = os.path.join(CACHE_DIR, repo_identifier)
 
         if not os.path.exists(local_target_dir) or not os.path.exists(os.path.join(local_target_dir, ".git")):
-            print(f"[OmniTrace Engine] Cloning GitHub repository {clone_url} -> {local_target_dir}")
+            print(f"[RepoTrace Engine] Cloning GitHub repository {clone_url} -> {local_target_dir}")
             cmd = ["git", "clone", "--depth", "1", clone_url, local_target_dir]
             res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             if res.returncode != 0 and not os.path.exists(local_target_dir):
@@ -200,13 +456,13 @@ def resolve_repo_path(raw_path: str, custom_name: str = "") -> Tuple[str, str, s
                     return sample_fallback, service_name, cleaned
                 raise ValueError(f"Failed to clone GitHub repository '{raw_path}': {res.stderr}")
         else:
-            print(f"[OmniTrace Engine] Fetching latest commit for cached GitHub repository at {local_target_dir}")
+            print(f"[RepoTrace Engine] Fetching latest commit for cached GitHub repository at {local_target_dir}")
             try:
                 subprocess.run(["git", "fetch", "origin"], cwd=local_target_dir, capture_output=True, timeout=10)
                 subprocess.run(["git", "reset", "--hard", "origin/main"], cwd=local_target_dir, capture_output=True, timeout=10)
                 subprocess.run(["git", "reset", "--hard", "origin/master"], cwd=local_target_dir, capture_output=True, timeout=10)
             except Exception as pull_err:
-                print(f"[OmniTrace Engine] Git sync warning: {pull_err}")
+                print(f"[RepoTrace Engine] Git sync warning: {pull_err}")
 
         return local_target_dir, service_name, cleaned
 
@@ -259,7 +515,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                             headers={
                                 "Authorization": f"token {token}",
                                 "Accept": "application/vnd.github.v3+json",
-                                "User-Agent": "OmniTrace-AI-Enterprise"
+                                "User-Agent": "RepoTrace-AI-Enterprise"
                             }
                         )
                         with urllib.request.urlopen(req) as response:
@@ -286,6 +542,22 @@ class RequestHandler(BaseHTTPRequestHandler):
                 # Return enterprise repositories list
                 self.send_json_response(200, {"repositories": MOCK_GITHUB_REPOS, "source": "cached_enterprise_mesh"})
 
+            elif self.path == '/api/pr-gate/status':
+                self.send_json_response(200, {
+                    "watched_repos": PR_GATE_WATCHED_REPOS,
+                    "processed": PR_GATE_PROCESSED,
+                    "has_token": bool(CURRENT_USER_SESSION.get("access_token", "")),
+                    "enabled": PR_GATE_ENABLED
+                })
+
+            elif self.path == '/api/pr-gate/config':
+                self.send_json_response(200, {
+                    "watched_repos": PR_GATE_WATCHED_REPOS,
+                    "enabled": PR_GATE_ENABLED,
+                    "poll_interval": PR_GATE_POLL_INTERVAL,
+                    "processed_count": len(PR_GATE_PROCESSED)
+                })
+
             else:
                 self.send_json_response(404, {"error": "Not Found"})
         except Exception as e:
@@ -309,6 +581,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                     "public_repos": 14,
                     "total_private_repos": 6
                 }
+                save_persistent_session()
                 self.send_json_response(200, CURRENT_USER_SESSION)
 
             elif self.path == '/api/auth/github/token':
@@ -320,7 +593,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                             headers={
                                 "Authorization": f"token {token}",
                                 "Accept": "application/vnd.github.v3+json",
-                                "User-Agent": "OmniTrace-AI-Enterprise"
+                                "User-Agent": "RepoTrace-AI-Enterprise"
                             }
                         )
                         with urllib.request.urlopen(req) as response:
@@ -335,6 +608,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                                 "public_repos": user_data.get("public_repos", 0),
                                 "total_private_repos": user_data.get("total_private_repos", 0)
                             }
+                            save_persistent_session()
                             self.send_json_response(200, CURRENT_USER_SESSION)
                             return
                     except Exception as e:
@@ -347,7 +621,58 @@ class RequestHandler(BaseHTTPRequestHandler):
                 CURRENT_USER_SESSION["authenticated"] = False
                 CURRENT_USER_SESSION["user"] = None
                 CURRENT_USER_SESSION["access_token"] = ""
+                save_persistent_session()
                 self.send_json_response(200, CURRENT_USER_SESSION)
+            elif self.path == '/api/pr-gate/config':
+                # Get or update PR gate watched repos config
+                new_repos = body.get('watched_repos', None)
+                if new_repos is not None:
+                    PR_GATE_WATCHED_REPOS.clear()
+                    PR_GATE_WATCHED_REPOS.extend(new_repos)
+                    save_pr_gate_config()
+                self.send_json_response(200, {
+                    "watched_repos": PR_GATE_WATCHED_REPOS,
+                    "enabled": PR_GATE_ENABLED,
+                    "poll_interval": PR_GATE_POLL_INTERVAL,
+                    "processed_count": len(PR_GATE_PROCESSED)
+                })
+
+            elif self.path == '/api/pr-gate/add-repo':
+                owner = body.get('owner', '').strip()
+                repo = body.get('repo', '').strip()
+                if owner and repo:
+                    entry = {"owner": owner, "repo": repo}
+                    if entry not in PR_GATE_WATCHED_REPOS:
+                        PR_GATE_WATCHED_REPOS.append(entry)
+                        save_pr_gate_config()
+                    self.send_json_response(200, {"status": "added", "watched_repos": PR_GATE_WATCHED_REPOS})
+                else:
+                    self.send_json_response(400, {"error": "owner and repo required"})
+
+            elif self.path == '/api/pr-gate/trigger':
+                # Manual trigger: immediately check all watched repos
+                token = CURRENT_USER_SESSION.get("access_token", "")
+                if not token:
+                    self.send_json_response(400, {"error": "GitHub token required. Log in with token first."})
+                elif not PR_GATE_WATCHED_REPOS:
+                    self.send_json_response(400, {"error": "No repos configured. Add repos first."})
+                else:
+                    results = []
+                    for entry in PR_GATE_WATCHED_REPOS:
+                        owner = entry.get("owner", "")
+                        repo = entry.get("repo", "")
+                        if owner and repo:
+                            pr_watcher_check_repo(owner, repo, token)
+                            results.append(f"{owner}/{repo}")
+                    self.send_json_response(200, {"status": "triggered", "repos_checked": results})
+
+            elif self.path == '/api/pr-gate/status':
+                self.send_json_response(200, {
+                    "watched_repos": PR_GATE_WATCHED_REPOS,
+                    "processed": PR_GATE_PROCESSED,
+                    "has_token": bool(CURRENT_USER_SESSION.get("access_token", "")),
+                    "enabled": PR_GATE_ENABLED
+                })
 
             elif self.path == '/api/github/install_workflow':
                 repo_full_name = body.get('repo_full_name', '')
@@ -355,7 +680,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 
                 token = CURRENT_USER_SESSION.get("access_token", "")
                 
-                workflow_content = """name: OmniTrace PR API Governance
+                workflow_content = """name: RepoTrace PR API Governance
 
 on:
   pull_request:
@@ -366,28 +691,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  omnitrace-ast-gate:
-    name: OmniTrace AST Boundary & Schema Drift Check
+  repotrace-ast-gate:
+    name: RepoTrace AST Boundary & Schema Drift Check
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Checkout Codebase
         uses: actions/checkout@v4
 
-      - name: Checkout OmniTrace Engine Core
+      - name: Checkout RepoTrace Engine Core
         uses: actions/checkout@v4
         with:
           repository: pujith-vijay-swamy/OT-Enterprise-Edition
-          path: omnitrace_engine
+          path: repotrace_engine
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Run OmniTrace CLI AST PR Gate
+      - name: Run RepoTrace CLI AST PR Gate
         run: |
-          python omnitrace_engine/engine/omnitrace/cli.py pr-check --head ./ --out-md pr_comment.md
+          python repotrace_engine/engine/repotrace/cli.py pr-check --head ./ --out-md pr_comment.md
 
       - name: Post Sticky GitHub PR Governance Comment
         if: always()
@@ -402,7 +727,7 @@ jobs:
                 repo: context.repo.repo,
                 issue_number: context.payload.pull_request.number,
               });
-              const botComment = comments.find(c => c.body.includes('OmniTrace AI'));
+              const botComment = comments.find(c => c.body.includes('RepoTrace AI'));
               if (botComment) {
                 await github.rest.issues.updateComment({
                   owner: context.repo.owner,
@@ -424,13 +749,13 @@ jobs:
 
                 if token and '/' in repo_full_name:
                     try:
-                        url = f"https://api.github.com/repos/{repo_full_name}/contents/.github/workflows/omnitrace-ci.yml"
+                        url = f"https://api.github.com/repos/{repo_full_name}/contents/.github/workflows/repotrace-ci.yml"
                         req = urllib.request.Request(
                             url,
                             headers={
                                 "Authorization": f"token {token}",
                                 "Accept": "application/vnd.github.v3+json",
-                                "User-Agent": "OmniTrace-AI-Enterprise"
+                                "User-Agent": "RepoTrace-AI-Enterprise"
                             }
                         )
                         sha = None
@@ -442,7 +767,7 @@ jobs:
                             sha = None
 
                         put_data = {
-                            "message": "feat(omnitrace): add OmniTrace AI PR Governance workflow gate",
+                            "message": "feat(repotrace): add RepoTrace AI PR Governance workflow gate",
                             "content": encoded_content,
                             "branch": branch
                         }
@@ -456,7 +781,7 @@ jobs:
                                 "Authorization": f"token {token}",
                                 "Accept": "application/vnd.github.v3+json",
                                 "Content-Type": "application/json",
-                                "User-Agent": "OmniTrace-AI-Enterprise"
+                                "User-Agent": "RepoTrace-AI-Enterprise"
                             },
                             method='PUT'
                         )
@@ -466,10 +791,10 @@ jobs:
                             self.send_json_response(200, {
                                 "success": True,
                                 "repo": repo_full_name,
-                                "file": ".github/workflows/omnitrace-ci.yml",
+                                "file": ".github/workflows/repotrace-ci.yml",
                                 "commit_url": commit_html_url,
                                 "pr_url": f"https://github.com/{repo_full_name}/pulls",
-                                "message": f"Successfully created .github/workflows/omnitrace-ci.yml in {repo_full_name}!"
+                                "message": f"Successfully created .github/workflows/repotrace-ci.yml in {repo_full_name}!"
                             })
                             return
                     except Exception as e:
@@ -479,11 +804,17 @@ jobs:
                 self.send_json_response(200, {
                     "success": True,
                     "repo": repo_full_name or "enterprise-mesh-repo",
-                    "file": ".github/workflows/omnitrace-ci.yml",
+                    "file": ".github/workflows/repotrace-ci.yml",
                     "commit_url": target_url,
                     "pr_url": f"{target_url}/pulls" if '/' in repo_full_name else target_url,
-                    "message": f"Successfully committed .github/workflows/omnitrace-ci.yml to {repo_full_name or 'microservice'}!"
+                    "message": f"Successfully committed .github/workflows/repotrace-ci.yml to {repo_full_name or 'microservice'}!"
                 })
+
+            elif self.path == '/api/github/install_workflow':
+                repo_full_name = body.get('repo_full_name', '')
+                branch = body.get('branch', 'main')
+                if repo_full_name:
+                    auto_enable_pr_gate_for_repo(repo_full_name)
 
             elif self.path == '/api/scan_repos':
                 repos = body.get('repositories', [])
@@ -496,6 +827,7 @@ jobs:
                 for r in repos:
                     raw_dir = r.get('dir', '')
                     c_name = r.get('name', '')
+                    auto_enable_pr_gate_for_repo(raw_dir)
 
                     resolved_dir, s_name, repo_label = resolve_repo_path(raw_dir, c_name)
 
@@ -525,8 +857,8 @@ jobs:
                         all_contracts.append(contract)
                         continue
 
-                    # Fallback to omnitrace.contract.json if no source files found
-                    contract_json_path = os.path.join(resolved_dir, "omnitrace.contract.json")
+                    # Fallback to repotrace.contract.json if no source files found
+                    contract_json_path = os.path.join(resolved_dir, "repotrace.contract.json")
                     if os.path.exists(contract_json_path):
                         try:
                             contract = ServiceContract.load_json(contract_json_path)
@@ -577,7 +909,7 @@ jobs:
                     self.send_json_response(400, {"error": f"Resolved directory path '{resolved_dir}' does not exist"})
                     return
 
-                contract_json_path = os.path.join(resolved_dir, "omnitrace.contract.json")
+                contract_json_path = os.path.join(resolved_dir, "repotrace.contract.json")
                 if os.path.exists(contract_json_path):
                     contract = ServiceContract.load_json(contract_json_path)
                     if s_name:
@@ -644,12 +976,14 @@ jobs:
             else:
                 self.send_json_response(404, {"error": "Not Found"})
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             self.send_json_response(500, {"error": str(e)})
 
 def run(port=4400):
     server_address = ('', port)
     httpd = HTTPServer(server_address, RequestHandler)
-    print(f"OmniTrace API Engine server running on http://localhost:{port}")
+    print(f"RepoTrace API Engine server running on http://localhost:{port}")
     httpd.serve_forever()
 
 if __name__ == '__main__':

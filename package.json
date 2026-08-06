@@ -1,11 +1,11 @@
 {
-  "name": "omnitrace-enterprise",
+  "name": "repotrace-enterprise",
   "version": "2.4.0",
-  "description": "OmniTrace AI — Cross-Repository API Observability & PR Governance Platform",
+  "description": "RepoTrace AI — Cross-Repository API Observability & PR Governance Platform",
   "private": true,
   "scripts": {
-    "dev": "npx -y concurrently -k -n \"UI,ENGINE\" -c \"cyan,yellow\" \"cd web && npm run dev\" \"python engine/omnitrace/server.py\"",
+    "dev": "npx -y concurrently -k -n \"UI,ENGINE\" -c \"cyan,yellow\" \"cd web && npm run dev\" \"npx -y cross-env PYTHONIOENCODING=utf-8 python engine/repotrace/server.py\"",
     "web": "cd web && npm run dev",
-    "engine": "python engine/omnitrace/server.py"
+    "engine": "npx -y cross-env PYTHONIOENCODING=utf-8 python engine/repotrace/server.py"
   }
 }

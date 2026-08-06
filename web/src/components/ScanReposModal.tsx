@@ -40,6 +40,34 @@ export const ScanReposModal: React.FC<ScanReposModalProps> = ({
   const [isScanning, setIsScanning] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Custom external repository input state
+  const [customRepoInput, setCustomRepoInput] = useState('');
+
+  const handleAddCustomExternalRepo = () => {
+    if (!customRepoInput.trim()) return;
+    const input = customRepoInput.trim();
+    let fullName = input;
+    if (input.includes('/')) {
+      fullName = input.replace('https://github.com/', '').replace('.git', '').replace(/\/$/, '');
+    }
+    const newId = Date.now();
+    const newRepo: GitHubRepoItem = {
+      id: newId,
+      name: fullName.split('/').pop() || fullName,
+      full_name: fullName,
+      language: 'TypeScript',
+      private: false,
+      html_url: input.startsWith('http') ? input : `https://github.com/${fullName}`,
+      clone_url: input.startsWith('http') ? input : `https://github.com/${fullName}.git`,
+      updated_at: new Date().toISOString(),
+      description: 'External Microservice Repository'
+    };
+
+    setGithubRepos(prev => [newRepo, ...prev]);
+    setSelectedRepoIds(prev => new Set([newId, ...Array.from(prev)]));
+    setCustomRepoInput('');
+  };
+
   // Fetch repositories from GitHub API on modal open
   useEffect(() => {
     if (isOpen) {
@@ -224,6 +252,26 @@ export const ScanReposModal: React.FC<ScanReposModalProps> = ({
         {/* Tab 1: GitHub Remote Repos List with Search & Checkboxes */}
         {activeTab === 'remote' && (
           <div className="space-y-2.5">
+            {/* Add Custom External Repo Input Bar */}
+            <div className="flex flex-col sm:flex-row items-center gap-2 p-2 bg-[#171717] border border-neutral-700">
+              <input
+                type="text"
+                placeholder="Add external repo from another user/org (e.g. 25pa1a45a2-ai/checkout-frontend)"
+                value={customRepoInput}
+                onChange={e => setCustomRepoInput(e.target.value)}
+                className="w-full bg-black border border-neutral-700 px-2.5 py-1 text-xs text-white placeholder-neutral-500 font-mono focus:outline-none focus:border-cyan-400"
+              />
+              <button
+                type="button"
+                onClick={handleAddCustomExternalRepo}
+                disabled={!customRepoInput.trim()}
+                className="w-full sm:w-auto px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold uppercase border border-white shadow-[1.5px_1.5px_0px_0px_#ffffff] cursor-pointer disabled:opacity-40 flex items-center justify-center gap-1 shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                + ADD EXTERNAL REPO
+              </button>
+            </div>
+
             <div className="flex items-center justify-between gap-3">
               <div className="relative flex-1">
                 <Search className="w-3.5 h-3.5 text-neutral-500 absolute left-2.5 top-2" />
@@ -238,7 +286,7 @@ export const ScanReposModal: React.FC<ScanReposModalProps> = ({
 
               <button
                 onClick={handleSelectAll}
-                className="px-2.5 py-1 bg-[#171717] hover:bg-[#262626] border-2 border-neutral-700 text-xs font-bold text-neutral-300 uppercase cursor-pointer"
+                className="px-2.5 py-1 bg-[#171717] hover:bg-[#262626] border border-neutral-700 text-xs font-bold text-neutral-300 uppercase shrink-0"
               >
                 {selectedRepoIds.size === filteredRepos.length ? 'Deselect All' : 'Select All'}
               </button>
@@ -314,7 +362,7 @@ export const ScanReposModal: React.FC<ScanReposModalProps> = ({
                             onClick={e => handle1ClickInstallWorkflow(e, repo)}
                             disabled={isInstalling}
                             className="px-2 py-0.5 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500 text-[10px] font-bold text-cyan-300 uppercase flex items-center gap-1 shadow-[1px_1px_0px_0px_#06b6d4] cursor-pointer disabled:opacity-40"
-                            title="Automatically inject .github/workflows/omnitrace-ci.yml PR gate into this repository"
+                            title="Automatically inject .github/workflows/repotrace-ci.yml PR gate into this repository"
                           >
                             {isInstalling ? <RefreshCw className="w-3 h-3 animate-spin text-cyan-400" /> : <Zap className="w-3 h-3 text-cyan-400" />}
                             {isInstalling ? 'ENABLING...' : '⚡ 1-CLICK ENABLE PR GATE'}

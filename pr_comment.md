@@ -1,4 +1,4 @@
-## 🌐 OmniTrace AI -- Cross-Repository PR Governance Check
+## 🌐 RepoTrace AI -- Cross-Repository PR Governance Check
 
 **CI Pipeline Gate**: `CRITICAL: PR BLOCKED -- Cross-Repository Contract Drift`
 **PR Microservice**: `user-service-v2` | **Comparison**: `1.0.0` -> `1.0.0`
@@ -17,7 +17,7 @@
 ---
 ### 2. 🔗 Cross-Repository Downstream & Upstream Impact Matrix
 
-OmniTrace static analysis evaluated contract dependencies across external target microservices:
+RepoTrace static analysis evaluated contract dependencies across external target microservices:
 
 | Impact Status | Consumer Microservice | Producer Microservice | Endpoint Route | Impact & Schema Drift Details |
 | :--- | :--- | :--- | :--- | :--- |
@@ -31,19 +31,19 @@ OmniTrace static analysis evaluated contract dependencies across external target
 
 **1. GET `/api/v1/users/{user_id}` -- Endpoint route GET /api/v1/users/{user_id} was completely removed**
 - **Action Required**: Restore route GET /api/v1/users/{user_id} or issue deprecation headers before removal.
-- **Commit Origin**: *"feat(omnitrace): initialize OmniTrace AI Enterprise platform"* by @pujith
+- **Commit Origin**: *"feat(repotrace): initialize RepoTrace AI Enterprise platform"* by @pujith
 
 **2. POST `/api/v1/users` -- Field 'email' renamed to 'user_email' in response payload**
 - **Action Required**: Maintain backwards compatibility by alias-mapping 'email' to 'user_email'.
-- **Commit Origin**: *"feat(omnitrace): initialize OmniTrace AI Enterprise platform"* by @pujith
+- **Commit Origin**: *"feat(repotrace): initialize RepoTrace AI Enterprise platform"* by @pujith
 
 **3. POST `/api/v1/users` -- Field 'is_active' was removed from response model**
 - **Action Required**: Re-add field 'is_active' or mark it optional before deletion.
-- **Commit Origin**: *"feat(omnitrace): initialize OmniTrace AI Enterprise platform"* by @pujith
+- **Commit Origin**: *"feat(repotrace): initialize RepoTrace AI Enterprise platform"* by @pujith
 
 **4. POST `/api/v1/users` -- Field 'role' renamed to 'user_role' in response payload**
 - **Action Required**: Maintain backwards compatibility by alias-mapping 'role' to 'user_role'.
-- **Commit Origin**: *"feat(omnitrace): initialize OmniTrace AI Enterprise platform"* by @pujith
+- **Commit Origin**: *"feat(repotrace): initialize RepoTrace AI Enterprise platform"* by @pujith
 
 **5. Cross-Repo Breakdown between `checkout-frontend` and `user-service-v2`**
 - **Consumer Endpoint Call**: `GET /api/v1/users/${userId}` in `src\UserProfile.tsx:L15`
@@ -66,4 +66,4 @@ OmniTrace static analysis evaluated contract dependencies across external target
 - **Remediation**: Update consumer `payment-gateway-service` or maintain endpoint alias compatibility in producer `user-service-v2`.
 
 ---
-*Powered by OmniTrace AI Cross-Repository Governance Engine*
+*Powered by RepoTrace AI Cross-Repository Governance Engine*

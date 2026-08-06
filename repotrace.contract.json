@@ -1,6 +1,6 @@
 {
-  "schema_version": "omnitrace.contract.v1",
-  "service_name": "user-service-v1",
+  "schema_version": "repotrace.contract.v1",
+  "service_name": "UserService",
   "service_type": "producer",
   "language": "python",
   "repository": "d:\\OT\\samples\\user-service-v1",

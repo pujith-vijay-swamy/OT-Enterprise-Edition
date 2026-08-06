@@ -6,7 +6,7 @@ export const INITIAL_SERVICES: ServiceNodeData[] = [
     label: 'user-service (FastAPI)',
     service_type: 'producer',
     language: 'python',
-    repository: 'github.com/omnitrace/user-service',
+    repository: 'github.com/repotrace/user-service',
     version: 'v2.0.0-rc1',
     routes_count: 3,
     consumer_calls_count: 0,
@@ -52,7 +52,7 @@ export const INITIAL_SERVICES: ServiceNodeData[] = [
     label: 'checkout-frontend (React TS)',
     service_type: 'consumer',
     language: 'typescript',
-    repository: 'github.com/omnitrace/checkout-frontend',
+    repository: 'github.com/repotrace/checkout-frontend',
     version: 'v1.4.2',
     routes_count: 0,
     consumer_calls_count: 2,
@@ -77,7 +77,7 @@ export const INITIAL_SERVICES: ServiceNodeData[] = [
     label: 'payment-gateway (Express)',
     service_type: 'fullstack',
     language: 'typescript',
-    repository: 'github.com/omnitrace/payment-gateway',
+    repository: 'github.com/repotrace/payment-gateway',
     version: 'v3.1.0',
     routes_count: 4,
     consumer_calls_count: 3,
@@ -116,7 +116,7 @@ export const INITIAL_SERVICES: ServiceNodeData[] = [
     label: 'order-service (Python FastAPI)',
     service_type: 'fullstack',
     language: 'python',
-    repository: 'github.com/omnitrace/order-service',
+    repository: 'github.com/repotrace/order-service',
     version: 'v2.3.0',
     routes_count: 5,
     consumer_calls_count: 2,
@@ -151,7 +151,7 @@ export const INITIAL_SERVICES: ServiceNodeData[] = [
     label: 'notification-service (Node.js)',
     service_type: 'consumer',
     language: 'typescript',
-    repository: 'github.com/omnitrace/notification-service',
+    repository: 'github.com/repotrace/notification-service',
     version: 'v1.1.0',
     routes_count: 0,
     consumer_calls_count: 1,
@@ -176,7 +176,7 @@ export const INITIAL_SERVICES: ServiceNodeData[] = [
     label: 'analytics-worker (Python)',
     service_type: 'consumer',
     language: 'python',
-    repository: 'github.com/omnitrace/analytics-worker',
+    repository: 'github.com/repotrace/analytics-worker',
     version: 'v1.0.1',
     routes_count: 0,
     consumer_calls_count: 1,
@@ -275,7 +275,7 @@ export const SAMPLE_DRIFTS: ContractDrift[] = [
     git_context: {
       commit_sha: 'a8f3b20c',
       author: 'alex_dev',
-      author_email: 'alex@omnitrace.io',
+      author_email: 'alex@repotrace.io',
       commit_message: 'Refactor user-service model for multi-tenant isolation',
       timestamp: '2026-07-29T14:32:10Z',
       line_number: 18,
@@ -297,7 +297,7 @@ export const SAMPLE_DRIFTS: ContractDrift[] = [
     git_context: {
       commit_sha: 'a8f3b20c',
       author: 'alex_dev',
-      author_email: 'alex@omnitrace.io',
+      author_email: 'alex@repotrace.io',
       commit_message: 'Refactor user-service model for multi-tenant isolation',
       timestamp: '2026-07-29T14:32:10Z',
       line_number: 26,
@@ -319,7 +319,7 @@ export const SAMPLE_DRIFTS: ContractDrift[] = [
     git_context: {
       commit_sha: 'c4e10b9d',
       author: 'sam_backend',
-      author_email: 'sam@omnitrace.io',
+      author_email: 'sam@repotrace.io',
       commit_message: 'Remove legacy boolean status flags',
       timestamp: '2026-07-29T11:15:04Z',
       line_number: 12,
@@ -360,7 +360,7 @@ class UserResponse(BaseModel):
 
 @app.get("/api/v1/users/{user_id}", response_model=UserResponse)
 def get_user_profile(user_id: str):
-    return UserResponse(id=user_id, email="alice@omnitrace.io", is_active=True, role="admin")
+    return UserResponse(id=user_id, email="alice@repotrace.io", is_active=True, role="admin")
 
 @app.post("/api/v1/users", response_model=UserResponse)
 def create_user(payload: UserCreateRequest):
@@ -380,7 +380,7 @@ class UserResponseV2(BaseModel):
 @app.get("/api/v1/users/{tenant_id}/{user_id}", response_model=UserResponseV2)
 def get_user_profile_v2(tenant_id: str, user_id: str):
     # [BREAKING DRIFT] Route signature changed & added tenant_id
-    return UserResponseV2(id=user_id, user_email="alice@omnitrace.io", user_role="admin")
+    return UserResponseV2(id=user_id, user_email="alice@repotrace.io", user_role="admin")
 
 @app.post("/api/v1/users", response_model=UserResponseV2)
 def create_user(payload: UserCreateRequest):

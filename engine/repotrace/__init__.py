@@ -1,4 +1,4 @@
 """
-OmniTrace AI Engine Package
+RepoTrace AI Engine Package
 """
 __version__ = "1.0.0"

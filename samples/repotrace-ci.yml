@@ -1,11 +1,11 @@
-name: OmniTrace AI — Passive Contract Drift CI Gate
+name: RepoTrace AI — Passive Contract Drift CI Gate
 
 on:
   pull_request:
     branches: [ main, master, develop ]
 
 jobs:
-  omnitrace-contract-check:
+  repotrace-contract-check:
     name: AST Contract Drift & Blast Radius Audit
     runs-on: ubuntu-latest
 
@@ -26,14 +26,14 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install OmniTrace Engine Dependencies
+      - name: Install RepoTrace Engine Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install fastapi pydantic uvicorn requests
 
-      - name: Run OmniTrace CLI Extraction & Cross-Repo Match
+      - name: Run RepoTrace CLI Extraction & Cross-Repo Match
         run: |
-          python current-repo/engine/omnitrace/cli.py check \
+          python current-repo/engine/repotrace/cli.py check \
             --dir-a ./upstream-producer-service \
             --dir-b ./current-repo \
             --strict-block
@@ -47,5 +47,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '🚨 **OmniTrace AI Guardrail Blocked PR**: Detected breaking AST API contract drift! Please inspect route signatures and field schemas before merging.'
+              body: '🚨 **RepoTrace AI Guardrail Blocked PR**: Detected breaking AST API contract drift! Please inspect route signatures and field schemas before merging.'
             })

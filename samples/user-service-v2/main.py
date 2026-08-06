@@ -20,7 +20,7 @@ def get_user_profile_v2(tenant_id: str, user_id: str):
     Retrieve user profile (V2 schema).
     Added required tenant_id parameter.
     """
-    return UserResponseV2(id=user_id, user_email="alice@omnitrace.io", user_role="admin")
+    return UserResponseV2(id=user_id, user_email="alice@repotrace.io", user_role="admin")
 
 @app.post("/api/v1/users", response_model=UserResponseV2)
 def create_user(payload: UserCreateRequest):

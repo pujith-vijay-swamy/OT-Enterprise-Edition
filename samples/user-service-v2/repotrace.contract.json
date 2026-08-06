@@ -1,19 +1,25 @@
 {
   "schema_version": "repotrace.contract.v1",
-  "service_name": "user-service-v1",
+  "service_name": "user-service-v2",
   "service_type": "producer",
   "language": "python",
-  "repository": "D:\\OT\\samples\\user-service-v1",
+  "repository": "d:\\OT\\samples\\user-service-v2",
   "version": "1.0.0",
   "routes": [
     {
-      "path": "/api/v1/users/{user_id}",
-      "normalized_path": "/api/v1/users/{param}",
+      "path": "/api/v1/users/{tenant_id}/{user_id}",
+      "normalized_path": "/api/v1/users/{param}/{param}",
       "method": "GET",
-      "handler_name": "get_user_profile",
+      "handler_name": "get_user_profile_v2",
       "source_file": "main.py",
       "line_number": 18,
       "path_params": [
+        {
+          "name": "tenant_id",
+          "param_type": "str",
+          "required": true,
+          "default": null
+        },
         {
           "name": "user_id",
           "param_type": "str",
@@ -32,19 +38,13 @@
             "description": ""
           },
           {
-            "name": "email",
+            "name": "user_email",
             "field_type": "str",
             "required": true,
             "description": ""
           },
           {
-            "name": "is_active",
-            "field_type": "bool",
-            "required": true,
-            "description": ""
-          },
-          {
-            "name": "role",
+            "name": "user_role",
             "field_type": "str",
             "required": false,
             "description": ""
@@ -58,7 +58,7 @@
       "method": "POST",
       "handler_name": "create_user",
       "source_file": "main.py",
-      "line_number": 25,
+      "line_number": 26,
       "path_params": [
         {
           "name": "payload",
@@ -78,19 +78,13 @@
             "description": ""
           },
           {
-            "name": "email",
+            "name": "user_email",
             "field_type": "str",
             "required": true,
             "description": ""
           },
           {
-            "name": "is_active",
-            "field_type": "bool",
-            "required": true,
-            "description": ""
-          },
-          {
-            "name": "role",
+            "name": "user_role",
             "field_type": "str",
             "required": false,
             "description": ""

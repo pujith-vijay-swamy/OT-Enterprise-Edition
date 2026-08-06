@@ -1,9 +1,7 @@
-'use client';
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GovernancePolicy, ServiceNodeData, ServiceEdgeData } from '../lib/types';
-import { installGitHubWorkflow } from '../lib/api';
-import { ShieldCheck, Sliders, Activity, GitPullRequest, CheckCircle2, XCircle, AlertTriangle, Layers, Check, Zap, RefreshCw, ExternalLink } from 'lucide-react';
+import { installGitHubWorkflow, fetchPRGateStatus, addRepoToPRGate, triggerPRGateCheck } from '../lib/api';
+import { ShieldCheck, Sliders, Activity, GitPullRequest, CheckCircle2, XCircle, AlertTriangle, Layers, Check, Zap, RefreshCw, ExternalLink, Plus, FolderPlus } from 'lucide-react';
 
 interface GovernancePanelProps {
   services?: ServiceNodeData[];
@@ -21,6 +19,68 @@ export const GovernancePanel: React.FC<GovernancePanelProps> = ({ services = [],
 
   const [installingServiceId, setInstallingServiceId] = useState<string | null>(null);
   const [installedMap, setInstalledMap] = useState<Map<string, string>>(new Map());
+
+  // Watched repos for PR Gate Watcher
+  const [watchedRepos, setWatchedRepos] = useState<{ owner: string; repo: string }[]>([
+    { owner: 'pujith-vijay-swamy', repo: 'UserService' }
+  ]);
+  const [newRepoInput, setNewRepoInput] = useState('');
+  const [isAddingRepo, setIsAddingRepo] = useState(false);
+  const [isTriggering, setIsTriggering] = useState(false);
+  const [prGateMsg, setPrGateMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchPRGateStatus().then(status => {
+      if (status && status.watched_repos) {
+        setWatchedRepos(status.watched_repos);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const handleAddExternalRepo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRepoInput.trim()) return;
+    setPrGateMsg(null);
+    setIsAddingRepo(true);
+
+    try {
+      let owner = '';
+      let repo = '';
+      const input = newRepoInput.trim();
+      if (input.includes('/')) {
+        const clean = input.replace('https://github.com/', '').replace('.git', '').replace(/\/$/, '');
+        const parts = clean.split('/');
+        owner = parts[0];
+        repo = parts[1];
+      } else {
+        throw new Error('Enter repository as owner/repo (e.g. org/service-b) or GitHub URL');
+      }
+
+      if (!owner || !repo) throw new Error('Invalid owner/repo format');
+
+      const res = await addRepoToPRGate(owner, repo);
+      setWatchedRepos(res.watched_repos);
+      setNewRepoInput('');
+      setPrGateMsg(`✅ Enabled PR Check for ${owner}/${repo}`);
+    } catch (err: any) {
+      setPrGateMsg(`❌ ${err.message}`);
+    } finally {
+      setIsAddingRepo(false);
+    }
+  };
+
+  const handleTriggerPRGate = async () => {
+    setIsTriggering(true);
+    setPrGateMsg(null);
+    try {
+      const res = await triggerPRGateCheck();
+      setPrGateMsg(`🚀 Triggered PR Gate check on: ${res.repos_checked?.join(', ')}`);
+    } catch (err: any) {
+      setPrGateMsg(`❌ ${err.message}`);
+    } finally {
+      setIsTriggering(false);
+    }
+  };
 
   const breakingEdges = edges.filter(e => e.status === 'BREAKING');
   const breakingCount = breakingEdges.length;
@@ -58,6 +118,93 @@ export const GovernancePanel: React.FC<GovernancePanelProps> = ({ services = [],
 
   return (
     <div className="w-full h-[calc(100vh-140px)] overflow-y-auto space-y-6 p-1 font-mono">
+
+      {/* Automated Background PR Governance Watcher Control Banner */}
+      <div className="bg-[#0f172a] border-2 border-emerald-500 p-4 shadow-[4px_4px_0px_0px_#10b981] space-y-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-700 pb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-600 border border-white flex items-center justify-center text-white font-extrabold shadow-[2px_2px_0px_0px_#ffffff]">
+              <Zap className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">AUTOMATED PR GOVERNANCE WATCHER</h3>
+                <span className="text-[9.5px] font-bold px-2 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-500 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  DAEMON ACTIVE (30s)
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300">Continuous Background AST Drift Monitoring &amp; Auto PR Commenting</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleTriggerPRGate}
+              disabled={isTriggering}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold uppercase border border-white shadow-[2px_2px_0px_0px_#ffffff] cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isTriggering ? 'animate-spin' : ''}`} />
+              RUN PR CHECK NOW
+            </button>
+          </div>
+        </div>
+
+        {/* Add External Repo Form & Monitored Repos */}
+        <div className="space-y-2">
+          <form onSubmit={handleAddExternalRepo} className="flex flex-col sm:flex-row items-center gap-2">
+            <div className="relative flex-1 w-full">
+              <input
+                type="text"
+                placeholder="Add external repo e.g. org/repo-name or https://github.com/owner/repo"
+                value={newRepoInput}
+                onChange={e => setNewRepoInput(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 px-3 py-1.5 text-xs text-white placeholder-slate-500 font-mono focus:outline-none focus:border-cyan-400"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={isAddingRepo || !newRepoInput.trim()}
+              className="w-full sm:w-auto px-4 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold uppercase border border-white shadow-[2px_2px_0px_0px_#ffffff] cursor-pointer disabled:opacity-40 flex items-center justify-center gap-1.5 shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              ADD &amp; WATCH REPO
+            </button>
+          </form>
+
+          {prGateMsg && (
+            <div className="text-xs font-bold text-cyan-300 bg-slate-900 border border-slate-700 px-3 py-1">
+              {prGateMsg}
+            </div>
+          )}
+
+          {/* List of Monitored Repos */}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <span className="text-[11px] font-bold text-slate-400 uppercase">MONITORED REPOSITORIES ({watchedRepos.length}):</span>
+            {watchedRepos.map((r, i) => (
+              <span key={i} className="text-xs font-extrabold text-cyan-300 bg-slate-800 border border-slate-600 px-2.5 py-0.5 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                {r.owner}/{r.repo}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs pt-1">
+          <div className="bg-slate-900 border border-slate-700 p-2.5">
+            <div className="text-[10px] text-slate-400 font-bold uppercase">EXECUTION MODE</div>
+            <div className="text-xs font-extrabold text-emerald-400 mt-0.5">LOCAL DAEMON (ZERO CI WAIT)</div>
+          </div>
+          <div className="bg-slate-900 border border-slate-700 p-2.5">
+            <div className="text-[10px] text-slate-400 font-bold uppercase">TRIGGER AUDIT FREQUENCY</div>
+            <div className="text-xs font-extrabold text-cyan-300 mt-0.5">EVERY 30 SECONDS</div>
+          </div>
+          <div className="bg-slate-900 border border-slate-700 p-2.5">
+            <div className="text-[10px] text-slate-400 font-bold uppercase">ACTIVE WATCHED REPOSITORIES</div>
+            <div className="text-xs font-extrabold text-white mt-0.5">{watchedRepos.length} REPO(S) CONFIGURED</div>
+          </div>
+        </div>
+      </div>
       
       {/* Top Metric Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -243,7 +390,7 @@ export const GovernancePanel: React.FC<GovernancePanelProps> = ({ services = [],
                               onClick={() => handle1ClickInstall(s)}
                               disabled={isInstalling}
                               className="px-2 py-0.5 bg-cyan-950 hover:bg-cyan-900 border border-cyan-500 text-[10px] font-bold text-cyan-300 uppercase flex items-center gap-1 cursor-pointer shadow-[1px_1px_0px_0px_#06b6d4] disabled:opacity-40"
-                              title="Inject .github/workflows/omnitrace-ci.yml PR gate into this microservice"
+                              title="Inject .github/workflows/repotrace-ci.yml PR gate into this microservice"
                             >
                               {isInstalling ? <RefreshCw className="w-3 h-3 animate-spin text-cyan-400" /> : <Zap className="w-3 h-3 text-cyan-400" />}
                               {isInstalling ? 'ENABLING...' : '⚡ 1-CLICK ENABLE'}

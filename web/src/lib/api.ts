@@ -159,3 +159,35 @@ export async function diffContracts(oldContract: any, newContract: any) {
   }
   return await res.json();
 }
+
+export async function fetchPRGateStatus() {
+  const res = await fetch(`${API_BASE}/pr-gate/status`, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Failed to fetch PR gate status');
+  return await res.json();
+}
+
+export async function addRepoToPRGate(owner: string, repo: string) {
+  const res = await fetch(`${API_BASE}/pr-gate/add-repo`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ owner, repo })
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to add repo to PR Gate');
+  }
+  return await res.json();
+}
+
+export async function triggerPRGateCheck() {
+  const res = await fetch(`${API_BASE}/pr-gate/trigger`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({})
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to trigger PR check');
+  }
+  return await res.json();
+}

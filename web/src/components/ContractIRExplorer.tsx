@@ -57,7 +57,7 @@ export const ContractIRExplorer: React.FC<ContractIRExplorerProps> = ({ services
         <div className="bg-black px-4 py-3 border-b-2 border-[#262626] flex items-center justify-between text-xs">
           <div className="flex items-center gap-2 text-white font-bold uppercase">
             <Terminal className="w-4 h-4 text-cyan-400" />
-            <span>CONTRACT IR SPECIFICATION: omnitrace.contract.v1 ({activeService?.id})</span>
+            <span>CONTRACT IR SPECIFICATION: repotrace.contract.v1 ({activeService?.id})</span>
           </div>
 
           <button

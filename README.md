@@ -1,4 +1,4 @@
-# 🌐 OmniTrace AI — Cross-Repository API Observability & PR Governance
+# 🌐 RepoTrace AI — Cross-Repository API Observability & PR Governance
 
 > **Passive Cross-Repository API Boundary Observability & Schema Drift PR Governance Platform**
 
@@ -10,20 +10,20 @@
 
 ---
 
-## ⚡ What is OmniTrace AI?
+## ⚡ What is RepoTrace AI?
 
-**OmniTrace AI** is an enterprise-grade static analysis and boundary observability platform. It statically inspects microservices across disconnected Git repositories, maps producer-consumer API contracts without running code, and automatically prevents breaking schema drifts in Pull Requests via CI/CD gates.
+**RepoTrace AI** is an enterprise-grade static analysis and boundary observability platform. It statically inspects microservices across disconnected Git repositories, maps producer-consumer API contracts without running code, and automatically prevents breaking schema drifts in Pull Requests via CI/CD gates.
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                       OMNITRACE AI WEB CONSOLE                              │
+│                       REPOTRACE AI WEB CONSOLE                              │
 │   Next.js 16 (Turbopack) • React 19 • TypeScript • Tailwind CSS v4          │
 │   React Flow Graph Canvas • Monaco AST Diff Editor • Ultra-Brutalism Theme   │
 └──────────────────────────────────────┬──────────────────────────────────────┘
                                        │ REST API (JSON)
                                        ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                       OMNITRACE PYTHON AST ENGINE                           │
+│                       REPOTRACE PYTHON AST ENGINE                           │
 │   Python 3.11 REST Server (Port 4400) • Python AST Engine (ast stdlib)       │
 │   TypeScript AST Parser • CrossRepoMatcher • ContractDiffEngine             │
 └──────────────────────────────────────┬──────────────────────────────────────┘
@@ -43,8 +43,8 @@
 - 🔍 **Cross-Repository Static AST Parser**: Parses Python (FastAPI/Flask) & TypeScript/JavaScript (Express/Fetch/Axios) without executing code.
 - 🔴 **Pulsing Red Linkage Edges (`[BREAKING]`)**: Visually flags route mutations, missing response fields, and schema type mismatches on the topology graph.
 - 📝 **Monaco AST Diff Schema Viewer**: Embedded VS Code diff editor displaying inline red/green schema drift markers side-by-side.
-- ⚡ **1-Click GitHub Workflow Injection**: Injects `.github/workflows/omnitrace-ci.yml` directly into GitHub repositories in 1 click via GitHub REST API v3.
-- 🛡️ **Automated PR Governance Gate (`omnitrace pr-check`)**: Runs in GitHub Actions, posts automated sticky review comments, and blocks PR merges (`exit 1`) on breaking contract drifts.
+- ⚡ **1-Click GitHub Workflow Injection**: Injects `.github/workflows/repotrace-ci.yml` directly into GitHub repositories in 1 click via GitHub REST API v3.
+- 🛡️ **Automated PR Governance Gate (`repotrace pr-check`)**: Runs in GitHub Actions, posts automated sticky review comments, and blocks PR merges (`exit 1`) on breaking contract drifts.
 
 ---
 
@@ -53,9 +53,9 @@
 ```text
 .
 ├── 📂 engine/                        # Python AST Backend Engine & CLI Core
-│   └── 📂 omnitrace/
+│   └── 📂 repotrace/
 │       ├── server.py                 # REST API Engine Server (Port 4400)
-│       ├── cli.py                    # OmniTrace Terminal CLI & PR Gate (`pr-check`)
+│       ├── cli.py                    # RepoTrace Terminal CLI & PR Gate (`pr-check`)
 │       ├── ir.py                     # ServiceContract & ConsumerCall Schemas
 │       ├── matcher.py                # CrossRepoMatcher Static Topology Matcher
 │       ├── diff_engine.py            # ContractDiffEngine Schema Drift Detector
@@ -103,7 +103,7 @@ Assign **1 sample directory** from `samples/` to each colleague to push as a sta
 ### 1. Launch the Backend Engine Server (Port 4400)
 ```bash
 cd engine
-python omnitrace/server.py
+python repotrace/server.py
 ```
 
 ### 2. Launch the Web Console UI (Port 3000)
@@ -123,9 +123,9 @@ Open **[http://localhost:3000](http://localhost:3000)** in your web browser.
 2. Select your microservices and click **`⚡ 1-CLICK ENABLE PR GATE`**.
 3. When a developer modifies an API endpoint in a Pull Request, GitHub Actions automatically executes:
    ```bash
-   python engine/omnitrace/cli.py pr-check --head ./ --out-md pr_comment.md
+   python engine/repotrace/cli.py pr-check --head ./ --out-md pr_comment.md
    ```
-4. OmniTrace posts an automated review comment on GitHub detailing line numbers (`main.py:L18`) and **blocks the PR merge (`exit 1`)** if breaking changes exist! 🛑
+4. RepoTrace posts an automated review comment on GitHub detailing line numbers (`main.py:L18`) and **blocks the PR merge (`exit 1`)** if breaking changes exist! 🛑
 
 ---
 

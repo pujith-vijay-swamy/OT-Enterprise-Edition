@@ -1,5 +1,5 @@
 {
-  "schema_version": "omnitrace.contract.v1",
+  "schema_version": "repotrace.contract.v1",
   "service_name": "user-service-v2",
   "service_type": "producer",
   "language": "python",

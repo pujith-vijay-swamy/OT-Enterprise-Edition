@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List
-from omnitrace.ir import ServiceContract
+from repotrace.ir import ServiceContract
 
 class BaseParser(ABC):
     """

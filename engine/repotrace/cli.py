@@ -8,13 +8,13 @@ if engine_dir not in sys.path:
 import json
 import argparse
 from typing import List, Dict, Any, Optional
-from omnitrace.ir import ServiceContract
-from omnitrace.parsers.python_ast import PythonASTParser
-from omnitrace.parsers.ts_ast import TypeScriptASTParser
-from omnitrace.matcher import CrossRepoMatcher
-from omnitrace.diff_engine import ContractDiffEngine, DiffResult, ContractDriftItem
+from repotrace.ir import ServiceContract
+from repotrace.parsers.python_ast import PythonASTParser
+from repotrace.parsers.ts_ast import TypeScriptASTParser
+from repotrace.matcher import CrossRepoMatcher
+from repotrace.diff_engine import ContractDiffEngine, DiffResult, ContractDriftItem
 
-def extract_contract(source_dir: str, service_name: str = "", output_file: str = "omnitrace.contract.json") -> ServiceContract:
+def extract_contract(source_dir: str, service_name: str = "", output_file: str = "repotrace.contract.json") -> ServiceContract:
     source_dir = os.path.abspath(source_dir)
     
     # Determine dominant language
@@ -46,7 +46,7 @@ def generate_pr_comment_markdown(diff_result: DiffResult, cross_edges: List[Dict
     status_badge = "CRITICAL: PR BLOCKED -- Cross-Repository Contract Drift" if is_blocked else "PASS: Cross-Repository Governance Approved"
     
     md = [
-        "## 🌐 OmniTrace AI -- Cross-Repository PR Governance Check",
+        "## 🌐 RepoTrace AI -- Cross-Repository PR Governance Check",
         "",
         f"**CI Pipeline Gate**: `{status_badge}`",
         f"**PR Microservice**: `{diff_result.service_name}` | **Comparison**: `{diff_result.old_version}` -> `{diff_result.new_version}`",
@@ -79,7 +79,7 @@ def generate_pr_comment_markdown(diff_result: DiffResult, cross_edges: List[Dict
 
     if cross_edges:
         md.extend([
-            "OmniTrace static analysis evaluated contract dependencies across external target microservices:",
+            "RepoTrace static analysis evaluated contract dependencies across external target microservices:",
             "",
             "| Impact Status | Consumer Microservice | Producer Microservice | Endpoint Route | Impact & Schema Drift Details |",
             "| :--- | :--- | :--- | :--- | :--- |"
@@ -122,30 +122,30 @@ def generate_pr_comment_markdown(diff_result: DiffResult, cross_edges: List[Dict
 
     md.extend([
         "---",
-        "*Powered by OmniTrace AI Cross-Repository Governance Engine*"
+        "*Powered by RepoTrace AI Cross-Repository Governance Engine*"
     ])
 
     return "\n".join(md)
 
 
 def main():
-    parser = argparse.ArgumentParser(prog="omnitrace", description="OmniTrace AI -- Passive Contract Drift Detection CLI")
+    parser = argparse.ArgumentParser(prog="repotrace", description="RepoTrace AI -- Passive Contract Drift Detection CLI")
     subparsers = parser.add_subparsers(dest="command")
 
     # Init command: 1-Click local workflow file generator
-    init_p = subparsers.add_parser("init", help="Initialize OmniTrace GitHub Actions PR Governance workflow in current repo")
+    init_p = subparsers.add_parser("init", help="Initialize RepoTrace GitHub Actions PR Governance workflow in current repo")
     init_p.add_argument("--dir", default=".", help="Target repository directory (default: current directory)")
 
     # Extract command
     extract_p = subparsers.add_parser("extract", help="Extract AST API contract into JSON IR")
     extract_p.add_argument("--dir", required=True, help="Root source directory")
-    extract_p.add_argument("--out", default="omnitrace.contract.json", help="Output contract JSON file")
+    extract_p.add_argument("--out", default="repotrace.contract.json", help="Output contract JSON file")
     extract_p.add_argument("--name", default="", help="Service name override")
 
     # Check command
     check_p = subparsers.add_parser("check", help="Check contract drift between two repositories or contract files")
-    check_p.add_argument("--repo-a", required=True, help="Path to repo A or omnitrace.contract.json A (Producer / Baseline / Main)")
-    check_p.add_argument("--repo-b", required=True, help="Path to repo B or omnitrace.contract.json B (PR Branch / Modified)")
+    check_p.add_argument("--repo-a", required=True, help="Path to repo A or repotrace.contract.json A (Producer / Baseline / Main)")
+    check_p.add_argument("--repo-b", required=True, help="Path to repo B or repotrace.contract.json B (PR Branch / Modified)")
     check_p.add_argument("--fail-on-breaking", action="store_true", default=True, help="Exit with code 1 on breaking drift")
 
     # PR Check command specifically for Pull Request CI
@@ -173,9 +173,9 @@ def main():
         target_dir = os.path.abspath(args.dir)
         workflows_dir = os.path.join(target_dir, ".github", "workflows")
         os.makedirs(workflows_dir, exist_ok=True)
-        workflow_path = os.path.join(workflows_dir, "omnitrace-ci.yml")
+        workflow_path = os.path.join(workflows_dir, "repotrace-ci.yml")
 
-        workflow_yaml = """name: OmniTrace PR API Governance
+        workflow_yaml = """name: RepoTrace PR API Governance
 
 on:
   pull_request:
@@ -186,28 +186,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  omnitrace-ast-gate:
-    name: OmniTrace AST Boundary & Schema Drift Check
+  repotrace-ast-gate:
+    name: RepoTrace AST Boundary & Schema Drift Check
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Checkout Codebase
         uses: actions/checkout@v4
 
-      - name: Checkout OmniTrace Engine Core
+      - name: Checkout RepoTrace Engine Core
         uses: actions/checkout@v4
         with:
           repository: pujith-vijay-swamy/OT-Enterprise-Edition
-          path: omnitrace_engine
+          path: repotrace_engine
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Run OmniTrace CLI AST PR Gate
+      - name: Run RepoTrace CLI AST PR Gate
         run: |
-          python omnitrace_engine/engine/omnitrace/cli.py pr-check --head ./ --out-md pr_comment.md
+          python repotrace_engine/engine/repotrace/cli.py pr-check --head ./ --out-md pr_comment.md
 
       - name: Post Sticky GitHub PR Governance Comment
         if: always()
@@ -222,7 +222,7 @@ jobs:
                 repo: context.repo.repo,
                 issue_number: context.payload.pull_request.number,
               });
-              const botComment = comments.find(c => c.body.includes('OmniTrace AI'));
+              const botComment = comments.find(c => c.body.includes('RepoTrace AI'));
               if (botComment) {
                 await github.rest.issues.updateComment({
                   owner: context.repo.owner,
@@ -244,10 +244,10 @@ jobs:
             f.write(workflow_yaml)
 
         print("\n" + "=" * 68)
-        print("  OMNITRACE AI -- 1-CLICK WORKFLOW INITIALIZATION SUCCESSFUL")
+        print("  REPOTRACE AI -- 1-CLICK WORKFLOW INITIALIZATION SUCCESSFUL")
         print("=" * 68)
         print(f"[SUCCESS] Created GitHub Actions Workflow File: {workflow_path}")
-        print("[NEXT STEP] Commit and push .github/workflows/omnitrace-ci.yml to activate PR governance.")
+        print("[NEXT STEP] Commit and push .github/workflows/repotrace-ci.yml to activate PR governance.")
         print("=" * 68 + "\n")
 
     elif args.command == "extract":
@@ -304,7 +304,7 @@ jobs:
                 sample_path = os.path.join(samples_dir, sample_name)
                 if os.path.isdir(sample_path) and sample_name != os.path.basename(os.path.abspath(head_path)):
                     # Check if contract json or source exists
-                    contract_json = os.path.join(sample_path, "omnitrace.contract.json")
+                    contract_json = os.path.join(sample_path, "repotrace.contract.json")
                     if os.path.exists(contract_json):
                         sc = ServiceContract.load_json(contract_json)
                         if sc.service_name != c_head.service_name:
@@ -329,7 +329,7 @@ jobs:
         is_blocked = diff_res.has_breaking_changes or has_cross_breaking
 
         print("\n" + "=" * 68)
-        print("  OMNITRACE AI -- CROSS-REPOSITORY PR CONTRACT GOVERNANCE REPORT")
+        print("  REPOTRACE AI -- CROSS-REPOSITORY PR CONTRACT GOVERNANCE REPORT")
         print("=" * 68)
         print(f"Target Branch: main  |  PR Service: {diff_res.service_name}")
         
@@ -393,7 +393,7 @@ jobs:
         diff_res = diff_engine.diff_contracts(c_a, c_b)
 
         print("\n" + "=" * 68)
-        print(f"  OmniTrace Contract Drift Report: {diff_res.service_name}")
+        print(f"  RepoTrace Contract Drift Report: {diff_res.service_name}")
         print("=" * 68)
         print(f"Status: {'[BREAKING DRIFT]' if diff_res.has_breaking_changes else '[HEALTHY]'}")
         print(f"Drifts Found: {len(diff_res.drifts)}\n")
