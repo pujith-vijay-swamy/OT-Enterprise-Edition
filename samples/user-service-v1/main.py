@@ -1,31 +1,31 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-app = FastAPI(title="User Microservice", version="1.0.0")
+app = FastAPI(title="User Microservice", version="2.0.0")
 
-class UserResponse(BaseModel):
+class UserResponseV2(BaseModel):
     id: str
-    email: str
-    is_active: bool
-    role: str = "member"
+    user_email: str  # Breaking change: field renamed from 'email' to 'user_email'
+    # Breaking change: 'is_active' field deleted
+    user_role: str = "member"
 
 class UserCreateRequest(BaseModel):
-    email: str
+    user_email: str
     full_name: str
     password: str
 
-@app.get("/api/v1/users/{user_id}", response_model=UserResponse)
-def get_user_profile(user_id: str):
-    """Retrieve user details by unique identifier"""
-    if user_id == "404":
-        raise HTTPException(status_code=404, detail="User not found")
-    return UserResponse(id=user_id, email="alice@omnitrace.io", is_active=True, role="admin")
+@app.get("/api/v1/users/{tenant_id}/{user_id}", response_model=UserResponseV2)
+def get_user_profile_v2(tenant_id: str, user_id: str):
+    """
+    Retrieve user profile (V2 schema).
+    Added required tenant_id parameter.
+    """
+    return UserResponseV2(id=user_id, user_email="alice@omnitrace.io", user_role="admin")
 
-@app.post("/api/v1/users", response_model=UserResponse)
+@app.post("/api/v1/users", response_model=UserResponseV2)
 def create_user(payload: UserCreateRequest):
-    """Register a new user in system"""
-    return UserResponse(id="usr_999", email=payload.email, is_active=True)
+    return UserResponseV2(id="usr_999", user_email=payload.user_email)
 
 @app.get("/api/v1/health")
 def health_check():
-    return {"status": "healthy", "service": "user-service"}
+    return {"status": "healthy", "version": "v2.0.0"}
