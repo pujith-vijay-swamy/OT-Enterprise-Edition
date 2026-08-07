@@ -9,7 +9,7 @@ import ContractIRExplorer from '@/components/ContractIRExplorer';
 import ScanReposModal from '@/components/ScanReposModal';
 import { SAMPLE_DRIFTS } from '@/lib/mockData';
 import { ServiceNodeData, ServiceEdgeData, ContractDrift } from '@/lib/types';
-import { checkEngineHealth, fetchGitHubSession, loginGitHubDemo, loginGitHubToken, logoutGitHub, GitHubSession } from '@/lib/api';
+import { checkEngineHealth, fetchGitHubSession, loginGitHubDemo, loginGitHubToken, logoutGitHub, scanMultipleRepos, GitHubSession } from '@/lib/api';
 import { Server, FolderPlus, Trash2, Layers } from 'lucide-react';
 
 export default function Dashboard() {
@@ -38,6 +38,22 @@ export default function Dashboard() {
 
   // Persistent Node Positions state preserved across tab switches
   const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>({});
+
+  // Auto-load 6 microservices mesh on Dashboard mount for immediate visual topology & breaking diff
+  useEffect(() => {
+    scanMultipleRepos([
+      { dir: 'samples/checkout-frontend', name: 'checkout-frontend' },
+      { dir: 'samples/user-service-v1', name: 'user-service-v1' },
+      { dir: 'samples/user-service-v2', name: 'user-service-v2' },
+      { dir: 'samples/payment-gateway-service', name: 'payment-gateway-service' },
+      { dir: 'samples/order-service', name: 'order-service' },
+      { dir: 'samples/notification-service', name: 'notification-service' }
+    ]).then(res => {
+      if (res && res.contracts) {
+        handleScanComplete(res.contracts, res.topology);
+      }
+    }).catch(() => {});
+  }, []);
 
   // Check Python API Server engine status & GitHub Session concurrently
   useEffect(() => {
