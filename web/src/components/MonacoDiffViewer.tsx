@@ -9,12 +9,33 @@ import { GitCommit, User, Calendar, FileCode, AlertTriangle, ShieldCheck, ArrowR
 interface MonacoDiffViewerProps {
   services?: ServiceNodeData[];
   selectedDrift?: ContractDrift;
+  activePr?: {
+    pr_number: number;
+    head_branch: string;
+    base_branch: string;
+    pr_url: string;
+  };
 }
 
-export const MonacoDiffViewer: React.FC<MonacoDiffViewerProps> = ({ services = [], selectedDrift: initialDrift }) => {
+export const MonacoDiffViewer: React.FC<MonacoDiffViewerProps> = ({ services = [], selectedDrift: initialDrift, activePr: propsPr }) => {
   const [activeDrift, setActiveDrift] = useState<ContractDrift>(initialDrift || SAMPLE_DRIFTS[0]);
   const [selectedServiceA, setSelectedServiceA] = useState<string>('user-service-v1');
   const [selectedServiceB, setSelectedServiceB] = useState<string>('user-service-v2');
+  
+  // Dynamic PR state (allows switching between PR #9, PR #10, PR #7, PR #6, etc.)
+  const [prNumber, setPrNumber] = useState<number>(propsPr?.pr_number || 10);
+  const [headBranch, setHeadBranch] = useState<string>(propsPr?.head_branch || 'feature/v2-upgrade');
+  const [baseBranch, setBaseBranch] = useState<string>(propsPr?.base_branch || 'main');
+
+  useEffect(() => {
+    if (propsPr) {
+      setPrNumber(propsPr.pr_number);
+      setHeadBranch(propsPr.head_branch);
+      setBaseBranch(propsPr.base_branch);
+    }
+  }, [propsPr]);
+
+  const currentPrUrl = `https://github.com/pujith-vijay-swamy/UserService/pull/${prNumber}`;
 
   // Automatically select version pair (v1 vs v2) or breaking pair on initial load or service update
   useEffect(() => {
@@ -57,29 +78,44 @@ export const MonacoDiffViewer: React.FC<MonacoDiffViewerProps> = ({ services = [
   return (
     <div className="w-full h-[calc(100vh-140px)] flex flex-col gap-4 p-1 font-mono">
       
-      {/* Pull Request #6 Representation Banner */}
-      <div className="bg-[#170507] border-2 border-rose-600 p-3 shadow-[4px_4px_0px_0px_#f43f5e] flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-3">
-          <span className="px-2.5 py-1 bg-rose-950 text-rose-300 border border-rose-600 font-extrabold uppercase animate-pulse">
-            🔀 PULL REQUEST #6 (BLOCKED)
-          </span>
+      {/* Pull Request Representation Banner */}
+      <div className="bg-[#170507] border-2 border-rose-600 p-3.5 shadow-[4px_4px_0px_0px_#f43f5e] flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-1 bg-rose-950 text-rose-300 border border-rose-600 font-extrabold uppercase animate-pulse flex items-center gap-1.5 shadow-[2px_2px_0px_0px_#f43f5e]">
+              🔀 PULL REQUEST #{prNumber} (BLOCKED)
+            </span>
+            {/* PR Selector Dropdown */}
+            <select
+              value={prNumber}
+              onChange={(e) => setPrNumber(Number(e.target.value))}
+              className="bg-[#171717] border-2 border-neutral-700 text-white font-bold px-2 py-1 text-xs cursor-pointer focus:border-rose-500"
+            >
+              <option value={10}>PR #10 (Active)</option>
+              <option value={9}>PR #9 (Active)</option>
+              <option value={8}>PR #8</option>
+              <option value={7}>PR #7</option>
+              <option value={6}>PR #6</option>
+            </select>
+          </div>
+
           <div>
             <div className="font-extrabold text-white">
-              <span className="text-emerald-400 font-mono">user-service-v1 (base: main)</span>
+              <span className="text-emerald-400 font-mono">user-service-v1 (base: {baseBranch})</span>
               <span className="mx-2 text-rose-400 font-bold">⟵</span>
-              <span className="text-rose-400 font-mono">user-service-v2 (head: feature/v2-upgrade)</span>
+              <span className="text-rose-400 font-mono">user-service-v2 (head: {headBranch})</span>
             </div>
-            <p className="text-[10px] text-neutral-400 mt-0.5">AST Schema Diff comparing proposed PR #6 code against production baseline v1</p>
+            <p className="text-[10.5px] text-neutral-400 mt-0.5">AST Schema Diff comparing proposed PR #{prNumber} code against production baseline</p>
           </div>
         </div>
 
         <a
-          href="https://github.com/pujith-vijay-swamy/UserService/pull/6"
+          href={currentPrUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-extrabold uppercase border border-white shadow-[2px_2px_0px_0px_#ffffff] flex items-center justify-center gap-1.5 shrink-0"
+          className="px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white font-extrabold uppercase border border-white shadow-[2px_2px_0px_0px_#ffffff] flex items-center justify-center gap-1.5 shrink-0 transition-colors"
         >
-          VIEW PR #6 ON GITHUB ↗
+          VIEW PR #{prNumber} ON GITHUB ↗
         </a>
       </div>
       

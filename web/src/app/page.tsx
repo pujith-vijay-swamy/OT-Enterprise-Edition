@@ -36,6 +36,14 @@ export default function Dashboard() {
   const [selectedNode, setSelectedNode] = useState<ServiceNodeData | null>(null);
   const [selectedDrift, setSelectedDrift] = useState<ContractDrift>(SAMPLE_DRIFTS[0]);
 
+  // Active PR State (defaults to latest PR #10 / PR #9 on UserService)
+  const [activePr, setActivePr] = useState({
+    pr_number: 10,
+    head_branch: 'feature/v2-upgrade',
+    base_branch: 'main',
+    pr_url: 'https://github.com/pujith-vijay-swamy/UserService/pull/10'
+  });
+
   // Persistent Node Positions state preserved across tab switches
   const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>({});
 
@@ -343,7 +351,7 @@ export default function Dashboard() {
             )}
 
             {activeTab === 'monaco' && (
-              <MonacoDiffViewer services={services} selectedDrift={selectedDrift} />
+              <MonacoDiffViewer services={services} selectedDrift={selectedDrift} activePr={activePr} />
             )}
 
             {activeTab === 'governance' && (

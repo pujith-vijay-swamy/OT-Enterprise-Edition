@@ -33,14 +33,19 @@ interface TopologyCanvasProps {
 
 // Ultra-Brutalist Microservice Node Component
 const ServiceNodeComponent = ({ data }: { data: any }) => {
-  const isBreaking = data.health === 'BREAKING';
-  const isWarn = data.health === 'WARN';
+  const isGhost = data.id.includes('v2') || data.is_ghost;
+  const prNumber = data.pr_number || 10;
+  const headBranch = data.head_branch || 'feature/v2-upgrade';
 
   let borderStyle = 'border-2 border-neutral-700 bg-[#0a0a0a] shadow-[4px_4px_0px_0px_rgba(255,255,255,0.08)]';
   let badgeStyle = 'bg-emerald-950 text-emerald-400 border border-emerald-700 font-bold';
   let healthDotColor = 'bg-emerald-500';
 
-  if (isBreaking) {
+  if (isGhost) {
+    borderStyle = 'border-2 border-dashed border-rose-500 bg-[#1c0609]/95 backdrop-blur-md shadow-[0_0_25px_rgba(244,63,94,0.4)] ring-2 ring-rose-500/50';
+    badgeStyle = 'bg-rose-950 text-rose-300 border border-rose-600 font-extrabold animate-pulse';
+    healthDotColor = 'bg-rose-500 animate-ping';
+  } else if (isBreaking) {
     borderStyle = 'border-2 border-rose-600 bg-[#170507] shadow-[4px_4px_0px_0px_#f43f5e]';
     badgeStyle = 'bg-rose-950 text-rose-300 border border-rose-600 font-extrabold animate-pulse';
     healthDotColor = 'bg-rose-500 animate-ping';
@@ -59,8 +64,21 @@ const ServiceNodeComponent = ({ data }: { data: any }) => {
 
   return (
     <div
-      className={`p-4 min-w-[270px] max-w-[300px] ${borderStyle} ${cardEffect} group relative font-mono`}
+      className={`p-4 min-w-[285px] max-w-[315px] ${borderStyle} ${cardEffect} group relative font-mono`}
     >
+      {/* Ghost Box Header Banner */}
+      {isGhost && (
+        <div className="w-full bg-rose-950/90 border border-rose-600 px-2 py-1 mb-2.5 text-[10px] font-extrabold text-rose-200 flex items-center justify-between shadow-[2px_2px_0px_0px_#f43f5e]">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+            👻 GHOST PR OVERLAY (#{prNumber})
+          </span>
+          <span className="text-[9px] bg-rose-900 px-1 py-0.5 rounded text-white font-mono uppercase">
+            {headBranch}
+          </span>
+        </div>
+      )}
+
       {/* Remove Single Service Button */}
       {data.onRemoveService && (
         <button
@@ -97,7 +115,7 @@ const ServiceNodeComponent = ({ data }: { data: any }) => {
               <h3 className="text-xs font-extrabold text-white uppercase truncate">{data.label}</h3>
               {data.id.includes('v2') && (
                 <span className="text-[9px] font-extrabold px-1.5 py-0.5 bg-rose-950 text-rose-300 border border-rose-600 uppercase flex items-center gap-1 shadow-[1px_1px_0px_0px_#f43f5e]">
-                  🔀 PULL REQUEST #6
+                  🔀 PR #{prNumber}
                 </span>
               )}
               {data.id.includes('v1') && (
@@ -114,6 +132,31 @@ const ServiceNodeComponent = ({ data }: { data: any }) => {
           {data.health}
         </span>
       </div>
+
+      {/* Ghost PR Proposed Breaking Drifts Box */}
+      {isGhost && (
+        <div className="bg-black/90 p-2.5 border border-rose-800/80 text-[10.5px] font-mono space-y-1 mb-3 shadow-inner">
+          <div className="font-extrabold text-rose-400 uppercase text-[9.5px] flex items-center justify-between border-b border-rose-900/80 pb-1 mb-1.5">
+            <span className="flex items-center gap-1">
+              <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
+              Proposed Schema Drifts (4)
+            </span>
+            <span className="text-rose-300 font-extrabold">BLOCKED</span>
+          </div>
+          <div className="text-[10px] font-semibold text-rose-300 flex items-center justify-between">
+            <span>• FIELD_RENAMED</span>
+            <span className="text-neutral-400 font-mono">email → user_email</span>
+          </div>
+          <div className="text-[10px] font-semibold text-rose-300 flex items-center justify-between">
+            <span>• FIELD_DELETED</span>
+            <span className="text-rose-400 font-mono">is_active</span>
+          </div>
+          <div className="text-[10px] font-semibold text-rose-300 flex items-center justify-between">
+            <span>• ROUTE_MUTATED</span>
+            <span className="text-neutral-400 font-mono">/users/&#123;tenant_id&#125;</span>
+          </div>
+        </div>
+      )}
 
       {/* Metrics Row */}
       <div className="grid grid-cols-2 gap-2 mb-3 bg-black p-2 border border-neutral-800 text-xs font-mono">
