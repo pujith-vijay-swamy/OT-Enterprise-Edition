@@ -57,6 +57,32 @@ export const MonacoDiffViewer: React.FC<MonacoDiffViewerProps> = ({ services = [
   return (
     <div className="w-full h-[calc(100vh-140px)] flex flex-col gap-4 p-1 font-mono">
       
+      {/* Pull Request #6 Representation Banner */}
+      <div className="bg-[#170507] border-2 border-rose-600 p-3 shadow-[4px_4px_0px_0px_#f43f5e] flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-3">
+          <span className="px-2.5 py-1 bg-rose-950 text-rose-300 border border-rose-600 font-extrabold uppercase animate-pulse">
+            🔀 PULL REQUEST #6 (BLOCKED)
+          </span>
+          <div>
+            <div className="font-extrabold text-white">
+              <span className="text-emerald-400 font-mono">user-service-v1 (base: main)</span>
+              <span className="mx-2 text-rose-400 font-bold">⟵</span>
+              <span className="text-rose-400 font-mono">user-service-v2 (head: feature/v2-upgrade)</span>
+            </div>
+            <p className="text-[10px] text-neutral-400 mt-0.5">AST Schema Diff comparing proposed PR #6 code against production baseline v1</p>
+          </div>
+        </div>
+
+        <a
+          href="https://github.com/pujith-vijay-swamy/UserService/pull/6"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-extrabold uppercase border border-white shadow-[2px_2px_0px_0px_#ffffff] flex items-center justify-center gap-1.5 shrink-0"
+        >
+          VIEW PR #6 ON GITHUB ↗
+        </a>
+      </div>
+      
       {/* Top Controller Bar */}
       <div className="bg-[#0a0a0a] border-2 border-[#262626] p-3.5 shadow-[4px_4px_0px_0px_rgba(255,255,255,0.08)] flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         

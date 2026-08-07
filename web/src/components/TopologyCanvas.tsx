@@ -93,7 +93,19 @@ const ServiceNodeComponent = ({ data }: { data: any }) => {
             <span className={`absolute -top-1 -right-1 w-2 h-2 ${healthDotColor}`}></span>
           </div>
           <div className="min-w-0">
-            <h3 className="text-xs font-extrabold text-white uppercase truncate">{data.label}</h3>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h3 className="text-xs font-extrabold text-white uppercase truncate">{data.label}</h3>
+              {data.id.includes('v2') && (
+                <span className="text-[9px] font-extrabold px-1.5 py-0.5 bg-rose-950 text-rose-300 border border-rose-600 uppercase flex items-center gap-1 shadow-[1px_1px_0px_0px_#f43f5e]">
+                  🔀 PULL REQUEST #6
+                </span>
+              )}
+              {data.id.includes('v1') && (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-700 uppercase flex items-center gap-1">
+                  🌿 BASE: MAIN
+                </span>
+              )}
+            </div>
             <span className="text-[10px] text-neutral-400">{data.version}</span>
           </div>
         </div>
