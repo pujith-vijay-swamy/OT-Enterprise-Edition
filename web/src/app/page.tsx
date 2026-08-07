@@ -9,7 +9,7 @@ import ContractIRExplorer from '@/components/ContractIRExplorer';
 import ScanReposModal from '@/components/ScanReposModal';
 import { SAMPLE_DRIFTS } from '@/lib/mockData';
 import { ServiceNodeData, ServiceEdgeData, ContractDrift } from '@/lib/types';
-import { checkEngineHealth, fetchGitHubSession, loginGitHubDemo, loginGitHubToken, logoutGitHub, scanMultipleRepos, GitHubSession } from '@/lib/api';
+import { checkEngineHealth, fetchGitHubSession, loginGitHubDemo, loginGitHubToken, logoutGitHub, scanMultipleRepos, fetchLatestOpenPR, GitHubSession } from '@/lib/api';
 import { Server, FolderPlus, Trash2, Layers } from 'lucide-react';
 
 export default function Dashboard() {
@@ -36,19 +36,19 @@ export default function Dashboard() {
   const [selectedNode, setSelectedNode] = useState<ServiceNodeData | null>(null);
   const [selectedDrift, setSelectedDrift] = useState<ContractDrift>(SAMPLE_DRIFTS[0]);
 
-  // Active PR State (defaults to latest PR #10 / PR #9 on UserService)
+  // Active PR State (dynamically fetched from GitHub on mount)
   const [activePr, setActivePr] = useState({
-    pr_number: 10,
+    pr_number: 11,
     head_branch: 'feature/v2-upgrade',
     base_branch: 'main',
-    pr_url: 'https://github.com/pujith-vijay-swamy/UserService/pull/10'
+    pr_url: 'https://github.com/pujith-vijay-swamy/UserService/pull/11'
   });
 
   // Persistent Node Positions state preserved across tab switches
   const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>({});
 
-  // Auto-load 6 microservices mesh on Dashboard mount for immediate visual topology & breaking diff
-  useEffect(() => {
+  // Helper function to scan enterprise microservice mesh contracts
+  const scanMesh = () => {
     scanMultipleRepos([
       { dir: 'samples/checkout-frontend', name: 'checkout-frontend' },
       { dir: 'samples/user-service-v1', name: 'user-service-v1' },
@@ -58,20 +58,39 @@ export default function Dashboard() {
       { dir: 'samples/notification-service', name: 'notification-service' }
     ]).then(res => {
       if (res && res.contracts) {
-        handleScanComplete(res.contracts, res.topology);
+        handleLiveScanComplete(res.contracts, res.topology);
+      }
+    }).catch(() => {});
+  };
+
+  // Initial load of microservices mesh and latest PR
+  useEffect(() => {
+    scanMesh();
+
+    fetchLatestOpenPR('pujith-vijay-swamy', 'UserService').then(pr => {
+      if (pr) {
+        setActivePr({
+          pr_number: pr.number,
+          head_branch: pr.head_branch,
+          base_branch: pr.base_branch,
+          pr_url: pr.html_url
+        });
       }
     }).catch(() => {});
   }, []);
 
-  // Check Python API Server engine status & GitHub Session concurrently
+  // Real-Time Live Polling Loop (every 3 seconds) for instant dynamic updates
   useEffect(() => {
     let isMounted = true;
+    let pollCount = 0;
 
-    const verifyHealth = async () => {
+    const pollUpdates = async () => {
       try {
-        const [isOnline, session] = await Promise.all([
+        pollCount++;
+        const [isOnline, session, latestPr] = await Promise.all([
           checkEngineHealth(),
-          fetchGitHubSession()
+          fetchGitHubSession(),
+          fetchLatestOpenPR('pujith-vijay-swamy', 'UserService')
         ]);
 
         if (!isMounted) return;
@@ -79,6 +98,28 @@ export default function Dashboard() {
         setEngineOnline(isOnline);
         if (session && session.authenticated) {
           setGithubSession(session);
+        }
+
+        // Dynamically update PR number and trigger background scan if new PR detected
+        if (latestPr && latestPr.number) {
+          setActivePr(prev => {
+            if (prev.pr_number !== latestPr.number) {
+              // Trigger mesh scan on PR change
+              scanMesh();
+              return {
+                pr_number: latestPr.number,
+                head_branch: latestPr.head_branch,
+                base_branch: latestPr.base_branch,
+                pr_url: latestPr.html_url
+              };
+            }
+            return prev;
+          });
+        }
+
+        // Periodically refresh AST mesh contracts every 3rd poll (9 seconds) to pick up new code changes dynamically
+        if (pollCount % 3 === 0) {
+          scanMesh();
         }
 
         const params = new URLSearchParams(window.location.search);
@@ -90,8 +131,8 @@ export default function Dashboard() {
       }
     };
 
-    verifyHealth();
-    const interval = setInterval(verifyHealth, 15000);
+    pollUpdates();
+    const interval = setInterval(pollUpdates, 3000);
     return () => {
       isMounted = false;
       clearInterval(interval);
@@ -347,6 +388,7 @@ export default function Dashboard() {
                 onSelectNode={node => setSelectedNode(node)}
                 onSelectEdge={() => {}}
                 onRemoveService={handleRemoveSingleService}
+                activePr={activePr}
               />
             )}
 

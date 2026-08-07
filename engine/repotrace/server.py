@@ -569,6 +569,42 @@ class RequestHandler(BaseHTTPRequestHandler):
                     "processed_count": len(PR_GATE_PROCESSED)
                 })
 
+            elif self.path.startswith('/api/github/latest-pr'):
+                # Parse owner/repo from query params: /api/github/latest-pr?owner=X&repo=Y
+                from urllib.parse import urlparse, parse_qs
+                parsed = urlparse(self.path)
+                params = parse_qs(parsed.query)
+                owner = params.get('owner', ['pujith-vijay-swamy'])[0]
+                repo = params.get('repo', ['UserService'])[0]
+                
+                try:
+                    api_url = f"https://api.github.com/repos/{owner}/{repo}/pulls?state=open&sort=created&direction=desc&per_page=1"
+                    headers_dict = {
+                        "Accept": "application/vnd.github.v3+json",
+                        "User-Agent": "RepoTrace-Enterprise"
+                    }
+                    token = CURRENT_USER_SESSION.get("access_token", "")
+                    if token:
+                        headers_dict["Authorization"] = f"token {token}"
+                    
+                    req = urllib.request.Request(api_url, headers=headers_dict)
+                    with urllib.request.urlopen(req, timeout=8) as response:
+                        pulls = json.loads(response.read().decode('utf-8'))
+                        if pulls and len(pulls) > 0:
+                            pr = pulls[0]
+                            self.send_json_response(200, {
+                                "number": pr.get("number"),
+                                "head_branch": pr.get("head", {}).get("ref", "feature/v2-upgrade"),
+                                "base_branch": pr.get("base", {}).get("ref", "main"),
+                                "html_url": pr.get("html_url", ""),
+                                "title": pr.get("title", ""),
+                                "state": pr.get("state", "open")
+                            })
+                        else:
+                            self.send_json_response(200, {"number": None, "message": "No open PRs found"})
+                except Exception as e:
+                    self.send_json_response(200, {"number": None, "error": str(e)})
+
             else:
                 self.send_json_response(404, {"error": "Not Found"})
         except Exception as e:

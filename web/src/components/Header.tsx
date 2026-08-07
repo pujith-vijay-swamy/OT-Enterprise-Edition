@@ -83,6 +83,10 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="text-[9.5px] font-bold px-2 py-0.5 bg-[#171717] text-cyan-400 border border-[#404040]">
                   ENTERPRISE v2.4
                 </span>
+                <span className="text-[9px] font-extrabold px-2 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-700 flex items-center gap-1.5 shadow-[1px_1px_0px_0px_#10b981]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                  LIVE AST SYNC (3s)
+                </span>
               </div>
               <p className="text-[10.5px] text-neutral-400">STATIC AST BOUNDARY OBSERVABILITY</p>
             </div>

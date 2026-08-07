@@ -191,3 +191,40 @@ export async function triggerPRGateCheck() {
   }
   return await res.json();
 }
+
+export interface LatestPRInfo {
+  number: number;
+  head_branch: string;
+  base_branch: string;
+  html_url: string;
+  title: string;
+  state: string;
+}
+
+export async function fetchLatestOpenPR(owner: string, repo: string): Promise<LatestPRInfo | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(
+      `${API_BASE}/github/latest-pr?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`,
+      { cache: 'no-store', signal: controller.signal }
+    );
+    clearTimeout(timer);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.number) {
+        return {
+          number: data.number,
+          head_branch: data.head_branch || 'feature/v2-upgrade',
+          base_branch: data.base_branch || 'main',
+          html_url: data.html_url || '',
+          title: data.title || '',
+          state: data.state || 'open'
+        };
+      }
+    }
+  } catch (e) {
+    // Backend unreachable — fall back to defaults
+  }
+  return null;
+}

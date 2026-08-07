@@ -23,7 +23,7 @@ export const MonacoDiffViewer: React.FC<MonacoDiffViewerProps> = ({ services = [
   const [selectedServiceB, setSelectedServiceB] = useState<string>('user-service-v2');
   
   // Dynamic PR state (allows switching between PR #9, PR #10, PR #7, PR #6, etc.)
-  const [prNumber, setPrNumber] = useState<number>(propsPr?.pr_number || 10);
+  const [prNumber, setPrNumber] = useState<number>(propsPr?.pr_number || 11);
   const [headBranch, setHeadBranch] = useState<string>(propsPr?.head_branch || 'feature/v2-upgrade');
   const [baseBranch, setBaseBranch] = useState<string>(propsPr?.base_branch || 'main');
 

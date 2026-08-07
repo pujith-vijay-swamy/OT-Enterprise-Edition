@@ -29,12 +29,18 @@ interface TopologyCanvasProps {
   onSelectNode: (service: ServiceNodeData) => void;
   onSelectEdge: (edge: ServiceEdgeData) => void;
   onRemoveService?: (serviceId: string) => void;
+  activePr?: {
+    pr_number: number;
+    head_branch: string;
+    base_branch: string;
+    pr_url: string;
+  };
 }
 
 // Ultra-Brutalist Microservice Node Component
 const ServiceNodeComponent = ({ data }: { data: any }) => {
   const isGhost = data.id.includes('v2') || data.is_ghost;
-  const prNumber = data.pr_number || 10;
+  const prNumber = data.pr_number || 11;
   const headBranch = data.head_branch || 'feature/v2-upgrade';
 
   const isBreaking = data.health === 'BREAKING';
@@ -274,7 +280,8 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
   onUpdatePosition,
   onSelectNode,
   onSelectEdge,
-  onRemoveService
+  onRemoveService,
+  activePr
 }) => {
   const [selectedBlastSourceId, setSelectedBlastSourceId] = useState<string | null>(services[0]?.id || null);
   const [activeSelectedEdge, setActiveSelectedEdge] = useState<ServiceEdgeData | null>(null);
@@ -429,12 +436,14 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
             ...s,
             is_selected_blast: isSelectedBlast,
             is_impacted_blast: isImpactedBlast,
-            onRemoveService
+            onRemoveService,
+            pr_number: activePr?.pr_number || 11,
+            head_branch: activePr?.head_branch || 'feature/v2-upgrade'
           }
         };
       });
     });
-  }, [servicesWithDynamicHealth, savedPositions, defaultPositions, blastRadiusMode, selectedBlastSourceId, impactedServiceIds, onRemoveService, setNodes]);
+  }, [servicesWithDynamicHealth, savedPositions, defaultPositions, blastRadiusMode, selectedBlastSourceId, impactedServiceIds, onRemoveService, setNodes, activePr]);
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
