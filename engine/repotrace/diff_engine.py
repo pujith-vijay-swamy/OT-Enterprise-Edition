@@ -236,8 +236,8 @@ class ContractDiffEngine:
 
                 return GitCommitContext(
                     commit_sha=sha or "e4d29f1b",
-                    author=author or "alex_dev",
-                    author_email=email or "alex@repotrace.io",
+                    author=author or "pujith-vijay-swamy",
+                    author_email=email or "pujith984@gmail.com",
                     commit_message=summary or "Update API contract and response schema",
                     timestamp=time_str or "2026-07-29",
                     line_number=line_number,
@@ -248,8 +248,8 @@ class ContractDiffEngine:
 
         return GitCommitContext(
             commit_sha="a8f3b20c",
-            author="dev_team",
-            author_email="devs@repotrace.io",
+            author="pujith-vijay-swamy",
+            author_email="pujith984@gmail.com",
             commit_message="Refactor service endpoint definition",
             timestamp="Recent",
             line_number=line_number,

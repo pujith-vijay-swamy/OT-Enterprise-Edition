@@ -161,7 +161,7 @@ def github_api_request(url: str, token: str, method: str = "GET", data: dict = N
     with urllib.request.urlopen(req, timeout=15) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
-def run_pr_check_for_repo(repo_url: str):
+def run_pr_check_for_repo(repo_url: str, pr_author: str = "pujith-vijay-swamy"):
     """Clone/fetch a repo and run RepoTrace pr-check, return (is_blocked, markdown)."""
     from repotrace.cli import extract_contract, generate_pr_comment_markdown
 
@@ -188,6 +188,11 @@ def run_pr_check_for_repo(repo_url: str):
     # 1. Self diff
     diff_engine = ContractDiffEngine()
     diff_res = diff_engine.diff_contracts(c_base, c_head)
+
+    # Override author with PR author username
+    if pr_author:
+        for d in diff_res.drifts:
+            d.git_context.author = pr_author
 
     # 2. Cross-repo matching
     target_contracts = [c_head]
@@ -229,18 +234,19 @@ def pr_watcher_check_repo(owner: str, repo: str, token: str):
         for pr in prs:
             pr_number = pr["number"]
             head_sha = pr["head"]["sha"]
+            pr_author = pr.get("user", {}).get("login", "pujith-vijay-swamy")
             state_key = f"{owner}/{repo}#{pr_number}#{head_sha}"
 
             if state_key in PR_GATE_PROCESSED:
                 continue  # Already checked this exact commit
 
-            print(f"[PR-GATE] [SCAN] New PR detected: {owner}/{repo}#{pr_number} (SHA: {head_sha[:8]})")
+            print(f"[PR-GATE] [SCAN] New PR detected: {owner}/{repo}#{pr_number} (SHA: {head_sha[:8]}) by @{pr_author}")
 
             # Clone the PR branch repo
             clone_url = pr["head"]["repo"]["clone_url"] if pr["head"]["repo"] else f"https://github.com/{owner}/{repo}.git"
 
             try:
-                is_blocked, md_comment = run_pr_check_for_repo(clone_url)
+                is_blocked, md_comment = run_pr_check_for_repo(clone_url, pr_author=pr_author)
             except Exception as e:
                 print(f"[PR-GATE] [ERROR] AST check failed for {owner}/{repo}#{pr_number}: {e}")
                 PR_GATE_PROCESSED[state_key] = "error"
@@ -253,7 +259,7 @@ def pr_watcher_check_repo(owner: str, repo: str, token: str):
                     f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}/comments?per_page=100",
                     token
                 )
-                existing_ids = [c["id"] for c in comments if "RepoTrace AI" in c.get("body", "")]
+                existing_ids = [c["id"] for c in comments if "RepoTrace AI" in c.get("body", "") or "OmniTrace AI" in c.get("body", "")]
                 if existing_ids:
                     for cid in existing_ids:
                         github_api_request(
@@ -269,19 +275,20 @@ def pr_watcher_check_repo(owner: str, repo: str, token: str):
             except Exception as e:
                 print(f"[PR-GATE] [ERROR] Comment post failed: {e}")
 
-            # Set commit status
+            # Set commit statuses (update both RepoTrace and legacy OmniTrace contexts to unify status)
             try:
                 state = "failure" if is_blocked else "success"
                 desc = "BLOCKED: Cross-Repository Contract Drift" if is_blocked else "PASS: Governance Approved"
-                github_api_request(
-                    f"https://api.github.com/repos/{owner}/{repo}/statuses/{head_sha}",
-                    token, method="POST", data={
-                        "state": state,
-                        "target_url": f"https://github.com/{owner}/{repo}/pull/{pr_number}",
-                        "description": desc,
-                        "context": "RepoTrace AI / PR Governance Gate"
-                    }
-                )
+                for ctx in ["RepoTrace AI / PR Governance Gate", "OmniTrace AI / PR Governance Gate"]:
+                    github_api_request(
+                        f"https://api.github.com/repos/{owner}/{repo}/statuses/{head_sha}",
+                        token, method="POST", data={
+                            "state": state,
+                            "target_url": f"https://github.com/{owner}/{repo}/pull/{pr_number}",
+                            "description": desc,
+                            "context": ctx
+                        }
+                    )
                 status_icon = "[BLOCKED]" if is_blocked else "[PASS]"
                 print(f"[PR-GATE] {status_icon} Commit status set to {state.upper()} on {head_sha[:8]}")
             except Exception as e:
