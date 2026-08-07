@@ -37,6 +37,9 @@ const ServiceNodeComponent = ({ data }: { data: any }) => {
   const prNumber = data.pr_number || 10;
   const headBranch = data.head_branch || 'feature/v2-upgrade';
 
+  const isBreaking = data.health === 'BREAKING';
+  const isWarn = data.health === 'WARN';
+
   let borderStyle = 'border-2 border-neutral-700 bg-[#0a0a0a] shadow-[4px_4px_0px_0px_rgba(255,255,255,0.08)]';
   let badgeStyle = 'bg-emerald-950 text-emerald-400 border border-emerald-700 font-bold';
   let healthDotColor = 'bg-emerald-500';
