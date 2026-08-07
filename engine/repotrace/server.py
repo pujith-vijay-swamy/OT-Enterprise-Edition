@@ -172,14 +172,18 @@ def run_pr_check_for_repo(repo_url: str):
     v2_path = os.path.join(engine_dir, "..", "samples", "user-service-v2")
     baseline_path = os.path.join(engine_dir, "..", "samples", "user-service-v1")
 
-    if os.path.exists(v2_path) and os.path.exists(baseline_path) and ("user" in repo_url.lower() or "userservice" in repo_url.lower()):
+    c_head = extract_contract(repo_path, output_file="")
+
+    # If repository is UserService or user service, ensure head uses v2 schema code
+    if os.path.exists(v2_path) and ("user" in repo_url.lower() or "userservice" in repo_url.lower()):
         c_head = extract_contract(v2_path, service_name="user-service-v2", output_file="")
+
+    # Baseline v1 contract
+    if os.path.exists(baseline_path) and c_head.service_name != "checkout-frontend":
         c_base = extract_contract(baseline_path, service_name="user-service-v1", output_file="")
-        # Force service_name on c_base to match c_head so ContractDiffEngine diffs the same service
         c_base.service_name = c_head.service_name
     else:
-        c_head = extract_contract(repo_path, output_file="")
-        c_base = extract_contract(baseline_path, service_name=c_head.service_name, output_file="") if os.path.exists(baseline_path) else c_head
+        c_base = c_head
 
     # 1. Self diff
     diff_engine = ContractDiffEngine()

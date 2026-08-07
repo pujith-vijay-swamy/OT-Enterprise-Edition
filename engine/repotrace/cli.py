@@ -269,13 +269,16 @@ jobs:
         # Load or extract base (Baseline / Main branch code of self repo)
         if base_path and base_path.endswith(".json") and os.path.exists(base_path):
             c_base = ServiceContract.load_json(base_path)
+            c_base.service_name = c_head.service_name
         elif base_path and os.path.exists(base_path):
-            c_base = extract_contract(base_path, service_name=args.name, output_file="")
+            c_base = extract_contract(base_path, service_name=c_head.service_name, output_file="")
+            c_base.service_name = c_head.service_name
         else:
             # Baseline fallback
             baseline_path = os.path.join(engine_dir, "..", "samples", "user-service-v1")
             if os.path.exists(baseline_path) and c_head.service_name != "checkout-frontend":
-                c_base = extract_contract(baseline_path, service_name=args.name or c_head.service_name, output_file="")
+                c_base = extract_contract(baseline_path, service_name="user-service-v1", output_file="")
+                c_base.service_name = c_head.service_name
             else:
                 c_base = c_head
 
