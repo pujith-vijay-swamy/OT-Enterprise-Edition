@@ -92,6 +92,9 @@ export const MonacoDiffViewer: React.FC<MonacoDiffViewerProps> = ({ services = [
   const codeOriginal = serviceA ? JSON.stringify(serviceA.routes, null, 2) : V1_USER_SERVICE_CODE;
   const codeModified = serviceB ? JSON.stringify(serviceB.routes, null, 2) : V2_USER_SERVICE_CODE;
 
+  const labelA = serviceA ? serviceA.id : 'user-service-v1 (Baseline)';
+  const labelB = serviceB ? serviceB.id : 'user-service-v2 (Target Drift)';
+
   return (
     <div className="w-full h-[calc(100vh-140px)] flex flex-col gap-4 p-1 font-mono">
       
