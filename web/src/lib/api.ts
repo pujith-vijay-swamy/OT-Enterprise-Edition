@@ -192,13 +192,25 @@ export async function triggerPRGateCheck() {
   return await res.json();
 }
 
+export interface PRItem {
+  number: number;
+  title: string;
+  state: string;
+  is_open: boolean;
+  head_branch: string;
+  base_branch: string;
+  html_url: string;
+}
+
 export interface LatestPRInfo {
+  has_open_pr: boolean;
   number: number;
   head_branch: string;
   base_branch: string;
   html_url: string;
   title: string;
   state: string;
+  all_prs?: PRItem[];
 }
 
 export async function fetchLatestOpenPR(owner: string, repo: string): Promise<LatestPRInfo | null> {
@@ -214,12 +226,14 @@ export async function fetchLatestOpenPR(owner: string, repo: string): Promise<La
       const data = await res.json();
       if (data && data.number) {
         return {
+          has_open_pr: Boolean(data.has_open_pr),
           number: data.number,
           head_branch: data.head_branch || 'feature/v2-upgrade',
           base_branch: data.base_branch || 'main',
           html_url: data.html_url || '',
           title: data.title || '',
-          state: data.state || 'open'
+          state: data.state || 'open',
+          all_prs: data.all_prs || []
         };
       }
     }

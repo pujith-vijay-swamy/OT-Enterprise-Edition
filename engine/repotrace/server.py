@@ -569,7 +569,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                     "processed_count": len(PR_GATE_PROCESSED)
                 })
 
-            elif self.path.startswith('/api/github/latest-pr'):
+            elif self.path.startswith('/api/github/latest-pr') or self.path.startswith('/api/github/prs'):
                 # Parse owner/repo from query params: /api/github/latest-pr?owner=X&repo=Y
                 from urllib.parse import urlparse, parse_qs
                 parsed = urlparse(self.path)
@@ -578,7 +578,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 repo = params.get('repo', ['UserService'])[0]
                 
                 try:
-                    api_url = f"https://api.github.com/repos/{owner}/{repo}/pulls?state=open&sort=created&direction=desc&per_page=1"
+                    api_url = f"https://api.github.com/repos/{owner}/{repo}/pulls?state=all&sort=created&direction=desc&per_page=20"
                     headers_dict = {
                         "Accept": "application/vnd.github.v3+json",
                         "User-Agent": "RepoTrace-Enterprise"
@@ -589,21 +589,48 @@ class RequestHandler(BaseHTTPRequestHandler):
                     
                     req = urllib.request.Request(api_url, headers=headers_dict)
                     with urllib.request.urlopen(req, timeout=8) as response:
-                        pulls = json.loads(response.read().decode('utf-8'))
-                        if pulls and len(pulls) > 0:
-                            pr = pulls[0]
+                        raw_pulls = json.loads(response.read().decode('utf-8'))
+                        all_prs = []
+                        for p in raw_pulls:
+                            all_prs.append({
+                                "number": p.get("number"),
+                                "title": p.get("title", ""),
+                                "state": p.get("state", "closed"),
+                                "is_open": p.get("state") == "open",
+                                "head_branch": p.get("head", {}).get("ref", "feature/v2-upgrade"),
+                                "base_branch": p.get("base", {}).get("ref", "main"),
+                                "html_url": p.get("html_url", "")
+                            })
+                        
+                        open_prs = [p for p in all_prs if p["is_open"]]
+                        has_open_pr = len(open_prs) > 0
+                        latest_pr = open_prs[0] if has_open_pr else (all_prs[0] if len(all_prs) > 0 else None)
+                        
+                        if latest_pr:
                             self.send_json_response(200, {
-                                "number": pr.get("number"),
-                                "head_branch": pr.get("head", {}).get("ref", "feature/v2-upgrade"),
-                                "base_branch": pr.get("base", {}).get("ref", "main"),
-                                "html_url": pr.get("html_url", ""),
-                                "title": pr.get("title", ""),
-                                "state": pr.get("state", "open")
+                                "has_open_pr": has_open_pr,
+                                "number": latest_pr["number"],
+                                "head_branch": latest_pr["head_branch"],
+                                "base_branch": latest_pr["base_branch"],
+                                "html_url": latest_pr["html_url"],
+                                "title": latest_pr["title"],
+                                "state": latest_pr["state"],
+                                "all_prs": all_prs
                             })
                         else:
-                            self.send_json_response(200, {"number": None, "message": "No open PRs found"})
+                            self.send_json_response(200, {
+                                "has_open_pr": False,
+                                "number": None,
+                                "message": "No PRs found",
+                                "all_prs": []
+                            })
                 except Exception as e:
-                    self.send_json_response(200, {"number": None, "error": str(e)})
+                    self.send_json_response(200, {
+                        "has_open_pr": False,
+                        "number": None,
+                        "error": str(e),
+                        "all_prs": []
+                    })
 
             else:
                 self.send_json_response(404, {"error": "Not Found"})

@@ -30,17 +30,19 @@ interface TopologyCanvasProps {
   onSelectEdge: (edge: ServiceEdgeData) => void;
   onRemoveService?: (serviceId: string) => void;
   activePr?: {
+    has_open_pr: boolean;
     pr_number: number;
     head_branch: string;
     base_branch: string;
     pr_url: string;
+    all_prs?: any[];
   };
 }
 
 // Ultra-Brutalist Microservice Node Component
 const ServiceNodeComponent = ({ data }: { data: any }) => {
-  const isGhost = data.id.includes('v2') || data.is_ghost;
-  const prNumber = data.pr_number || 11;
+  const isGhost = (data.id.includes('v2') || data.is_ghost) && Boolean(data.has_open_pr);
+  const prNumber = data.pr_number || 14;
   const headBranch = data.head_branch || 'feature/v2-upgrade';
 
   const isBreaking = data.health === 'BREAKING';
@@ -437,7 +439,8 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
             is_selected_blast: isSelectedBlast,
             is_impacted_blast: isImpactedBlast,
             onRemoveService,
-            pr_number: activePr?.pr_number || 11,
+            has_open_pr: Boolean(activePr?.has_open_pr),
+            pr_number: activePr?.pr_number || 14,
             head_branch: activePr?.head_branch || 'feature/v2-upgrade'
           }
         };

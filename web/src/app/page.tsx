@@ -37,11 +37,20 @@ export default function Dashboard() {
   const [selectedDrift, setSelectedDrift] = useState<ContractDrift>(SAMPLE_DRIFTS[0]);
 
   // Active PR State (dynamically fetched from GitHub on mount)
-  const [activePr, setActivePr] = useState({
-    pr_number: 11,
+  const [activePr, setActivePr] = useState<{
+    has_open_pr: boolean;
+    pr_number: number;
+    head_branch: string;
+    base_branch: string;
+    pr_url: string;
+    all_prs: any[];
+  }>({
+    has_open_pr: false,
+    pr_number: 14,
     head_branch: 'feature/v2-upgrade',
     base_branch: 'main',
-    pr_url: 'https://github.com/pujith-vijay-swamy/UserService/pull/11'
+    pr_url: 'https://github.com/pujith-vijay-swamy/UserService/pull/14',
+    all_prs: []
   });
 
   // Persistent Node Positions state preserved across tab switches
@@ -70,10 +79,12 @@ export default function Dashboard() {
     fetchLatestOpenPR('pujith-vijay-swamy', 'UserService').then(pr => {
       if (pr) {
         setActivePr({
+          has_open_pr: pr.has_open_pr,
           pr_number: pr.number,
           head_branch: pr.head_branch,
           base_branch: pr.base_branch,
-          pr_url: pr.html_url
+          pr_url: pr.html_url,
+          all_prs: pr.all_prs || []
         });
       }
     }).catch(() => {});
@@ -103,14 +114,20 @@ export default function Dashboard() {
         // Dynamically update PR number and trigger background scan if new PR detected
         if (latestPr && latestPr.number) {
           setActivePr(prev => {
-            if (prev.pr_number !== latestPr.number) {
-              // Trigger mesh scan on PR change
+            if (
+              prev.pr_number !== latestPr.number ||
+              prev.has_open_pr !== latestPr.has_open_pr ||
+              (latestPr.all_prs && prev.all_prs?.length !== latestPr.all_prs.length)
+            ) {
+              // Trigger mesh scan on PR status/number change
               scanMesh();
               return {
+                has_open_pr: latestPr.has_open_pr,
                 pr_number: latestPr.number,
                 head_branch: latestPr.head_branch,
                 base_branch: latestPr.base_branch,
-                pr_url: latestPr.html_url
+                pr_url: latestPr.html_url,
+                all_prs: latestPr.all_prs || []
               };
             }
             return prev;

@@ -10,10 +10,12 @@ interface MonacoDiffViewerProps {
   services?: ServiceNodeData[];
   selectedDrift?: ContractDrift;
   activePr?: {
+    has_open_pr?: boolean;
     pr_number: number;
     head_branch: string;
     base_branch: string;
     pr_url: string;
+    all_prs?: any[];
   };
 }
 
@@ -22,8 +24,8 @@ export const MonacoDiffViewer: React.FC<MonacoDiffViewerProps> = ({ services = [
   const [selectedServiceA, setSelectedServiceA] = useState<string>('user-service-v1');
   const [selectedServiceB, setSelectedServiceB] = useState<string>('user-service-v2');
   
-  // Dynamic PR state (allows switching between PR #9, PR #10, PR #7, PR #6, etc.)
-  const [prNumber, setPrNumber] = useState<number>(propsPr?.pr_number || 11);
+  // Dynamic PR state (populates dynamically from GitHub PR list)
+  const [prNumber, setPrNumber] = useState<number>(propsPr?.pr_number || 14);
   const [headBranch, setHeadBranch] = useState<string>(propsPr?.head_branch || 'feature/v2-upgrade');
   const [baseBranch, setBaseBranch] = useState<string>(propsPr?.base_branch || 'main');
 
@@ -35,7 +37,20 @@ export const MonacoDiffViewer: React.FC<MonacoDiffViewerProps> = ({ services = [
     }
   }, [propsPr]);
 
-  const currentPrUrl = `https://github.com/pujith-vijay-swamy/UserService/pull/${prNumber}`;
+  const prList = propsPr?.all_prs && propsPr.all_prs.length > 0
+    ? propsPr.all_prs
+    : [
+        { number: 14, title: 'v2 upgrade', state: 'closed', is_open: false, head_branch: 'feature/v2-upgrade', base_branch: 'main' },
+        { number: 13, title: 'v2 upgrade', state: 'closed', is_open: false, head_branch: 'feature/v2-upgrade', base_branch: 'main' },
+        { number: 11, title: 'v2 upgrade', state: 'closed', is_open: false, head_branch: 'feature/v2-upgrade', base_branch: 'main' },
+        { number: 10, title: 'v2 upgrade', state: 'closed', is_open: false, head_branch: 'feature/v2-upgrade', base_branch: 'main' }
+      ];
+
+  const selectedPR = prList.find(p => p.number === prNumber) || prList[0];
+  const isSelectedPrOpen = selectedPR ? (selectedPR.is_open || selectedPR.state === 'open') : false;
+  const activeHeadBranch = selectedPR?.head_branch || headBranch;
+  const activeBaseBranch = selectedPR?.base_branch || baseBranch;
+  const currentPrUrl = selectedPR?.html_url || `https://github.com/pujith-vijay-swamy/UserService/pull/${prNumber}`;
 
   // Automatically select version pair (v1 vs v2) or breaking pair on initial load or service update
   useEffect(() => {
@@ -72,38 +87,46 @@ export const MonacoDiffViewer: React.FC<MonacoDiffViewerProps> = ({ services = [
   const codeOriginal = serviceA ? JSON.stringify(serviceA.routes, null, 2) : V1_USER_SERVICE_CODE;
   const codeModified = serviceB ? JSON.stringify(serviceB.routes, null, 2) : V2_USER_SERVICE_CODE;
 
-  const labelA = serviceA ? serviceA.id : 'user-service-v1 (Baseline)';
-  const labelB = serviceB ? serviceB.id : 'user-service-v2 (Target Drift)';
-
   return (
     <div className="w-full h-[calc(100vh-140px)] flex flex-col gap-4 p-1 font-mono">
       
       {/* Pull Request Representation Banner */}
-      <div className="bg-[#170507] border-2 border-rose-600 p-3.5 shadow-[4px_4px_0px_0px_#f43f5e] flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+      <div className={`p-3.5 border-2 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs ${
+        isSelectedPrOpen
+          ? 'bg-[#170507] border-rose-600 shadow-[4px_4px_0px_0px_#f43f5e]'
+          : 'bg-[#0f0f0f] border-neutral-700 shadow-[4px_4px_0px_0px_rgba(255,255,255,0.08)]'
+      }`}>
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 bg-rose-950 text-rose-300 border border-rose-600 font-extrabold uppercase animate-pulse flex items-center gap-1.5 shadow-[2px_2px_0px_0px_#f43f5e]">
-              🔀 PULL REQUEST #{prNumber} (BLOCKED)
-            </span>
-            {/* PR Selector Dropdown */}
+            {isSelectedPrOpen ? (
+              <span className="px-2.5 py-1 bg-rose-950 text-rose-300 border border-rose-600 font-extrabold uppercase animate-pulse flex items-center gap-1.5 shadow-[2px_2px_0px_0px_#f43f5e]">
+                🔀 PULL REQUEST #{prNumber} (BLOCKED)
+              </span>
+            ) : (
+              <span className="px-2.5 py-1 bg-neutral-900 text-neutral-300 border border-neutral-700 font-bold uppercase flex items-center gap-1.5">
+                ⚪ PULL REQUEST #{prNumber} ({selectedPR?.state ? selectedPR.state.toUpperCase() : 'CLOSED'})
+              </span>
+            )}
+
+            {/* Dynamic PR Selector Dropdown */}
             <select
               value={prNumber}
               onChange={(e) => setPrNumber(Number(e.target.value))}
               className="bg-[#171717] border-2 border-neutral-700 text-white font-bold px-2 py-1 text-xs cursor-pointer focus:border-rose-500"
             >
-              <option value={10}>PR #10 (Active)</option>
-              <option value={9}>PR #9 (Active)</option>
-              <option value={8}>PR #8</option>
-              <option value={7}>PR #7</option>
-              <option value={6}>PR #6</option>
+              {prList.map((p: any) => (
+                <option key={p.number} value={p.number}>
+                  PR #{p.number} ({p.is_open ? 'OPEN - BLOCKED' : p.state.toUpperCase()})
+                </option>
+              ))}
             </select>
           </div>
 
           <div>
             <div className="font-extrabold text-white">
-              <span className="text-emerald-400 font-mono">user-service-v1 (base: {baseBranch})</span>
+              <span className="text-emerald-400 font-mono">user-service-v1 (base: {activeBaseBranch})</span>
               <span className="mx-2 text-rose-400 font-bold">⟵</span>
-              <span className="text-rose-400 font-mono">user-service-v2 (head: {headBranch})</span>
+              <span className="text-rose-400 font-mono">user-service-v2 (head: {activeHeadBranch})</span>
             </div>
             <p className="text-[10.5px] text-neutral-400 mt-0.5">AST Schema Diff comparing proposed PR #{prNumber} code against production baseline</p>
           </div>
