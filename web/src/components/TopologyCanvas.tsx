@@ -430,7 +430,6 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
         };
 
         return {
-          ...(existing || {}),
           id: s.id,
           type: 'serviceNode',
           position: pos,

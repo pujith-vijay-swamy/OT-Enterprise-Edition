@@ -70,15 +70,21 @@ export default function Dashboard() {
   const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>({});
 
   // Helper function to scan enterprise microservice mesh contracts
-  const scanMesh = () => {
-    scanMultipleRepos([
+  const scanMesh = (isOpenPr?: boolean) => {
+    const reposToScan = [
       { dir: 'samples/checkout-frontend', name: 'checkout-frontend' },
       { dir: 'samples/user-service-v1', name: 'user-service-v1' },
-      { dir: 'samples/user-service-v2', name: 'user-service-v2' },
       { dir: 'samples/payment-gateway-service', name: 'payment-gateway-service' },
       { dir: 'samples/order-service', name: 'order-service' },
       { dir: 'samples/notification-service', name: 'notification-service' }
-    ]).then(res => {
+    ];
+
+    // ONLY include ghost PR service (user-service-v2) when an active open PR exists on GitHub!
+    if (isOpenPr) {
+      reposToScan.push({ dir: 'samples/user-service-v2', name: 'user-service-v2' });
+    }
+
+    scanMultipleRepos(reposToScan).then(res => {
       if (res && res.contracts) {
         handleLiveScanComplete(res.contracts, res.topology);
       }
@@ -87,8 +93,6 @@ export default function Dashboard() {
 
   // Initial load of microservices mesh and latest PR
   useEffect(() => {
-    scanMesh();
-
     fetchLatestOpenPR('pujith-vijay-swamy', 'UserService').then(pr => {
       if (pr) {
         setActivePr({
@@ -99,8 +103,11 @@ export default function Dashboard() {
           pr_url: pr.html_url,
           all_prs: pr.all_prs || []
         });
+        scanMesh(pr.has_open_pr);
+      } else {
+        scanMesh(false);
       }
-    }).catch(() => {});
+    }).catch(() => scanMesh(false));
   }, []);
 
   // Real-Time Live Polling Loop (every 3 seconds) for instant dynamic updates
@@ -125,7 +132,7 @@ export default function Dashboard() {
         }
 
         // Dynamically update PR number and trigger background scan if new PR detected
-        if (latestPr && latestPr.number) {
+        if (latestPr) {
           setActivePr(prev => {
             if (
               prev.pr_number !== latestPr.number ||
@@ -133,7 +140,7 @@ export default function Dashboard() {
               (latestPr.all_prs && prev.all_prs?.length !== latestPr.all_prs.length)
             ) {
               // Trigger mesh scan on PR status/number change
-              scanMesh();
+              scanMesh(latestPr.has_open_pr);
               return {
                 has_open_pr: latestPr.has_open_pr,
                 pr_number: latestPr.number,
@@ -149,7 +156,7 @@ export default function Dashboard() {
 
         // Periodically refresh AST mesh contracts every 3rd poll (9 seconds) to pick up new code changes dynamically
         if (pollCount % 3 === 0) {
-          scanMesh();
+          scanMesh(activePr.has_open_pr);
         }
 
         const params = new URLSearchParams(window.location.search);
