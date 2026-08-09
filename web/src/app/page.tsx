@@ -1,13 +1,26 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import Header from '@/components/Header';
 import TopologyCanvas from '@/components/TopologyCanvas';
-import MonacoDiffViewer from '@/components/MonacoDiffViewer';
 import GovernancePanel from '@/components/GovernancePanel';
 import ContractIRExplorer from '@/components/ContractIRExplorer';
 import ScanReposModal from '@/components/ScanReposModal';
 import { SAMPLE_DRIFTS } from '@/lib/mockData';
+
+const MonacoDiffViewer = dynamic(
+  () => import('@/components/MonacoDiffViewer'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-[calc(100vh-140px)] brutal-card flex flex-col items-center justify-center p-8 text-center space-y-4 font-mono">
+        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent animate-spin"></div>
+        <p className="text-xs font-bold text-white uppercase tracking-wider">LOADING AST MONACO DIFF EDITOR...</p>
+      </div>
+    )
+  }
+);
 import { ServiceNodeData, ServiceEdgeData, ContractDrift } from '@/lib/types';
 import { checkEngineHealth, fetchGitHubSession, loginGitHubDemo, loginGitHubToken, logoutGitHub, scanMultipleRepos, fetchLatestOpenPR, GitHubSession } from '@/lib/api';
 import { Server, FolderPlus, Trash2, Layers } from 'lucide-react';

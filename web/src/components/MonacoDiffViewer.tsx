@@ -20,6 +20,7 @@ interface MonacoDiffViewerProps {
 }
 
 export const MonacoDiffViewer: React.FC<MonacoDiffViewerProps> = ({ services = [], selectedDrift: initialDrift, activePr: propsPr }) => {
+  const [isMounted, setIsMounted] = useState<boolean>(false);
   const [activeDrift, setActiveDrift] = useState<ContractDrift>(initialDrift || SAMPLE_DRIFTS[0]);
   const [selectedServiceA, setSelectedServiceA] = useState<string>('user-service-v1');
   const [selectedServiceB, setSelectedServiceB] = useState<string>('user-service-v2');
@@ -28,6 +29,10 @@ export const MonacoDiffViewer: React.FC<MonacoDiffViewerProps> = ({ services = [
   const [prNumber, setPrNumber] = useState<number>(propsPr?.pr_number || 14);
   const [headBranch, setHeadBranch] = useState<string>(propsPr?.head_branch || 'feature/v2-upgrade');
   const [baseBranch, setBaseBranch] = useState<string>(propsPr?.base_branch || 'main');
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (propsPr) {
@@ -224,22 +229,28 @@ export const MonacoDiffViewer: React.FC<MonacoDiffViewerProps> = ({ services = [
             </div>
           </div>
 
-          <div className="flex-1 min-h-[380px]">
-            <DiffEditor
-              height="100%"
-              language="json"
-              original={codeOriginal}
-              modified={codeModified}
-              theme="vs-dark"
-              options={{
-                readOnly: true,
-                minimap: { enabled: false },
-                fontSize: 12,
-                renderSideBySide: true,
-                scrollBeyondLastLine: false,
-                smoothScrolling: true
-              }}
-            />
+          <div className="flex-1 min-h-[380px] bg-[#0a0a0a]">
+            {isMounted ? (
+              <DiffEditor
+                height="100%"
+                language="json"
+                original={codeOriginal}
+                modified={codeModified}
+                theme="vs-dark"
+                options={{
+                  readOnly: true,
+                  minimap: { enabled: false },
+                  fontSize: 12,
+                  renderSideBySide: true,
+                  scrollBeyondLastLine: false,
+                  smoothScrolling: true
+                }}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center p-8 text-neutral-400 font-mono text-xs">
+                <span>Loading Monaco Editor...</span>
+              </div>
+            )}
           </div>
         </div>
 
