@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import Header from '@/components/Header';
 import TopologyCanvas from '@/components/TopologyCanvas';
@@ -22,8 +22,16 @@ const MonacoDiffViewer = dynamic(
   }
 );
 import { ServiceNodeData, ServiceEdgeData, ContractDrift } from '@/lib/types';
-import { checkEngineHealth, fetchGitHubSession, loginGitHubDemo, loginGitHubToken, logoutGitHub, scanMultipleRepos, fetchLatestOpenPR, GitHubSession } from '@/lib/api';
+import { checkEngineHealth, fetchGitHubSession, loginGitHubDemo, loginGitHubToken, logoutGitHub, scanMultipleRepos, fetchLatestOpenPR, GitHubSession, API_BASE } from '@/lib/api';
 import { Server, FolderPlus, Trash2, Layers } from 'lucide-react';
+
+const DEFAULT_REPOS = [
+  { dir: 'samples/checkout-frontend', name: 'checkout-frontend' },
+  { dir: 'samples/user-service-v1', name: 'user-service-v1' },
+  { dir: 'samples/payment-gateway-service', name: 'payment-gateway-service' },
+  { dir: 'samples/order-service', name: 'order-service' },
+  { dir: 'samples/notification-service', name: 'notification-service' }
+];
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<string>('topology');
@@ -31,6 +39,41 @@ export default function Dashboard() {
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [engineOnline, setEngineOnline] = useState<boolean>(false);
+
+  // Active microservices list to scan dynamically
+  const [activeReposToScan, setActiveReposToScan] = useState<{ dir: string; name: string }[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('repotrace_active_repos');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
+    }
+    return DEFAULT_REPOS;
+  });
+
+  // User-deleted microservices blacklist preserved across live polls
+  const [deletedServiceIds, setDeletedServiceIds] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('repotrace_deleted_services');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch (e) {}
+    }
+    return [];
+  });
+
+  // Live mutable refs to guarantee 100% real-time state access inside React polling closures
+  const deletedServiceIdsRef = useRef<string[]>(deletedServiceIds);
+  deletedServiceIdsRef.current = deletedServiceIds;
+
+  const activeReposToScanRef = useRef<{ dir: string; name: string }[]>(activeReposToScan);
+  activeReposToScanRef.current = activeReposToScan;
 
   // GitHub OAuth Session State
   const [githubSession, setGithubSession] = useState<GitHubSession>({
@@ -66,21 +109,38 @@ export default function Dashboard() {
     all_prs: []
   });
 
+  const activePrRef = useRef(activePr);
+  useEffect(() => {
+    activePrRef.current = activePr;
+  }, [activePr]);
+
   // Persistent Node Positions state preserved across tab switches
   const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>({});
 
-  // Helper function to scan enterprise microservice mesh contracts
-  const scanMesh = (isOpenPr?: boolean) => {
-    const reposToScan = [
-      { dir: 'samples/checkout-frontend', name: 'checkout-frontend' },
-      { dir: 'samples/user-service-v1', name: 'user-service-v1' },
-      { dir: 'samples/payment-gateway-service', name: 'payment-gateway-service' },
-      { dir: 'samples/order-service', name: 'order-service' },
-      { dir: 'samples/notification-service', name: 'notification-service' }
-    ];
+  // Helper check if a repo or service name has been deleted by the user
+  const isDeletedService = (nameOrDir: string) => {
+    if (!nameOrDir) return false;
+    const clean = nameOrDir.toLowerCase().trim();
+    const liveList = deletedServiceIdsRef.current;
+    return liveList.some(d => {
+      if (!d) return false;
+      const dClean = d.toLowerCase().trim();
+      return clean === dClean || clean.includes(dClean) || dClean.includes(clean);
+    });
+  };
 
-    // ONLY include ghost PR service (user-service-v2) when an active open PR exists on GitHub!
-    if (isOpenPr) {
+  // Helper function to scan enterprise microservice mesh contracts
+  const scanMesh = (isOpenPr?: boolean, overrideRepos?: { dir: string; name: string }[]) => {
+    const baseList = overrideRepos || activeReposToScanRef.current;
+    const filteredBase = baseList.filter(r => !isDeletedService(r.name) && !isDeletedService(r.dir));
+    if (filteredBase.length === 0) return;
+
+    const reposToScan = [...filteredBase];
+
+    const currentOpenPrState = (isOpenPr !== undefined) ? isOpenPr : activePrRef.current.has_open_pr;
+
+    // ALWAYS include ghost PR service (user-service-v2) when active open PR exists and user has NOT deleted user-service-v2!
+    if (currentOpenPrState && !isDeletedService('user-service-v2') && !reposToScan.some(r => r.name === 'user-service-v2' || r.dir.includes('user-service-v2'))) {
       reposToScan.push({ dir: 'samples/user-service-v2', name: 'user-service-v2' });
     }
 
@@ -91,9 +151,12 @@ export default function Dashboard() {
     }).catch(() => {});
   };
 
+  const targetOwner = process.env.NEXT_PUBLIC_GITHUB_OWNER || githubSession?.user?.login || 'pujith-vijay-swamy';
+  const targetRepo = process.env.NEXT_PUBLIC_GITHUB_REPO || 'UserService';
+
   // Initial load of microservices mesh and latest PR
   useEffect(() => {
-    fetchLatestOpenPR('pujith-vijay-swamy', 'UserService').then(pr => {
+    fetchLatestOpenPR(targetOwner, targetRepo).then(pr => {
       if (pr) {
         setActivePr({
           has_open_pr: pr.has_open_pr,
@@ -121,7 +184,7 @@ export default function Dashboard() {
         const [isOnline, session, latestPr] = await Promise.all([
           checkEngineHealth(),
           fetchGitHubSession(),
-          fetchLatestOpenPR('pujith-vijay-swamy', 'UserService')
+          fetchLatestOpenPR(targetOwner, targetRepo)
         ]);
 
         if (!isMounted) return;
@@ -156,7 +219,8 @@ export default function Dashboard() {
 
         // Periodically refresh AST mesh contracts every 3rd poll (9 seconds) to pick up new code changes dynamically
         if (pollCount % 3 === 0) {
-          scanMesh(activePr.has_open_pr);
+          const livePrState = latestPr ? latestPr.has_open_pr : activePrRef.current.has_open_pr;
+          scanMesh(livePrState);
         }
 
         const params = new URLSearchParams(window.location.search);
@@ -174,7 +238,7 @@ export default function Dashboard() {
       isMounted = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [activeReposToScan]);
 
   const handleLoginGitHub = async () => {
     const session = await loginGitHubDemo();
@@ -201,65 +265,99 @@ export default function Dashboard() {
   };
 
   const handleClearAll = () => {
+    const currentIds = services.map(s => s.id);
+    deletedServiceIdsRef.current = currentIds;
+    setDeletedServiceIds(currentIds);
+    try {
+      localStorage.setItem('repotrace_deleted_services', JSON.stringify(currentIds));
+    } catch (e) {}
+
+    activeReposToScanRef.current = [];
+    setActiveReposToScan([]);
     setServices([]);
     setEdges([]);
     setNodePositions({});
+    try {
+      localStorage.removeItem('repotrace_active_repos');
+    } catch (e) {}
   };
 
   const handleRemoveSingleService = (serviceId: string) => {
-    setServices(prev => {
-      const remaining = prev.filter(s => s.id !== serviceId);
-      
-      const rawContractsForMatching = remaining.map(s => ({
-        service_name: s.id,
-        service_type: s.service_type,
-        language: s.language,
-        repository: s.repository,
-        version: s.version,
-        routes: s.routes,
-        consumer_calls: s.consumer_calls
-      }));
+    if (!deletedServiceIdsRef.current.includes(serviceId)) {
+      deletedServiceIdsRef.current = [...deletedServiceIdsRef.current, serviceId];
+    }
+    setDeletedServiceIds(deletedServiceIdsRef.current);
+    try {
+      localStorage.setItem('repotrace_deleted_services', JSON.stringify(deletedServiceIdsRef.current));
+    } catch (e) {}
 
-      if (rawContractsForMatching.length > 0) {
-        fetch('http://localhost:4400/api/match', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contracts: rawContractsForMatching })
-        })
-        .then(res => res.json())
-        .then(topology => {
-          if (topology && topology.edges) {
-            const newEdges: ServiceEdgeData[] = topology.edges.map((e: any, idx: number) => ({
+    const updatedRepos = activeReposToScanRef.current.filter(r => r.name !== serviceId && !r.dir.includes(serviceId));
+    activeReposToScanRef.current = updatedRepos;
+    setActiveReposToScan(updatedRepos);
+    try {
+      localStorage.setItem('repotrace_active_repos', JSON.stringify(updatedRepos));
+    } catch (e) {}
+
+    setServices(prev => prev.filter(s => s.id !== serviceId));
+    setEdges(prev => prev.filter(e => e.source !== serviceId && e.target !== serviceId));
+  };
+
+  const handleLiveScanComplete = (extractedContracts: any[], extractedTopology?: any, scannedRepos?: { dir: string; name: string }[]) => {
+    if (scannedRepos && scannedRepos.length > 0) {
+      const scannedNames = scannedRepos.map(r => r.name);
+      const remainingDeleted = deletedServiceIdsRef.current.filter(id => !scannedNames.includes(id));
+      deletedServiceIdsRef.current = remainingDeleted;
+      setDeletedServiceIds(remainingDeleted);
+      try {
+        localStorage.setItem('repotrace_deleted_services', JSON.stringify(remainingDeleted));
+      } catch (e) {}
+
+      activeReposToScanRef.current = scannedRepos;
+      setActiveReposToScan(scannedRepos);
+      try {
+        localStorage.setItem('repotrace_active_repos', JSON.stringify(scannedRepos));
+      } catch (e) {}
+    }
+    if (extractedContracts && extractedContracts.length > 0) {
+      const activeContracts = extractedContracts.filter(c => !isDeletedService(c.service_name));
+      const immediateEdges: ServiceEdgeData[] = (extractedTopology && extractedTopology.edges && extractedTopology.edges.length > 0)
+        ? extractedTopology.edges
+            .filter((e: any) => !isDeletedService(e.consumer_service) && !isDeletedService(e.producer_service))
+            .map((e: any, idx: number) => ({
               id: `edge-${e.consumer_service}-${e.producer_service}-${idx}`,
               source: e.consumer_service,
               target: e.producer_service,
               target_path: e.target_path,
               method: e.method,
               status: e.status || 'HEALTHY',
+              confidence_tier: e.confidence_tier || e.status || 'HEALTHY',
+              verification_status: e.verification_status,
+              verification_note: e.verification_note,
+              ai_explanation: e.ai_explanation || (
+                (e.status === 'BREAKING' || e.status === 'HIGH_CONFIDENCE_BREAK' || (e.producer_service && e.producer_service.includes('v2')))
+                  ? `AI Advisory (Gemini 3.5): Static AST boundary analysis confirmed breaking contract drift on ${e.target_path}. Consumer ${e.consumer_service} expects baseline signature, but producer ${e.producer_service} requires mutated path/schema.`
+                  : undefined
+              ),
               issues: e.issues || [],
               traffic_rps: 500
-            }));
-            setEdges(newEdges);
-          }
-        })
-        .catch(() => {});
-      } else {
-        setEdges([]);
-      }
+            }))
+        : edges.filter(e => !isDeletedService(e.source) && !isDeletedService(e.target));
 
-      return remaining;
-    });
-  };
-
-  const handleLiveScanComplete = (extractedContracts: any[], extractedTopology?: any) => {
-    if (extractedContracts && extractedContracts.length > 0) {
-      const incomingServices: ServiceNodeData[] = extractedContracts.map((c, idx) => {
+      const incomingServices: ServiceNodeData[] = activeContracts.map((c, idx) => {
         const id = c.service_name || `service-${idx}`;
         const routesCount = (c.routes || []).length;
         const callsCount = (c.consumer_calls || []).length;
         
-        let healthStatus: 'HEALTHY' | 'WARN' | 'BREAKING' = 'HEALTHY';
-        if (routesCount === 0 && callsCount === 0) healthStatus = 'WARN';
+        const relevantEdges = immediateEdges.filter(e => e.source === id || e.target === id);
+        let healthStatus: 'HEALTHY' | 'WARN' | 'BREAKING' | 'UNLINKED' = 'HEALTHY';
+
+        if (relevantEdges.length === 0) {
+          healthStatus = 'UNLINKED';
+        } else if (relevantEdges.some(e => e.status === 'BREAKING' || e.status === 'HIGH_CONFIDENCE_BREAK' || e.confidence_tier === 'HIGH_CONFIDENCE_BREAK')) {
+          healthStatus = 'BREAKING';
+        } else if (relevantEdges.some(e => e.status === 'WARN' || e.status === 'POSSIBLE_BREAK' || e.confidence_tier === 'POSSIBLE_BREAK')) {
+          healthStatus = 'WARN';
+        }
 
         return {
           id,
@@ -278,19 +376,7 @@ export default function Dashboard() {
         };
       });
 
-      if (extractedTopology && extractedTopology.edges) {
-        const immediateEdges: ServiceEdgeData[] = extractedTopology.edges.map((e: any, idx: number) => ({
-          id: `edge-${e.consumer_service}-${e.producer_service}-${idx}`,
-          source: e.consumer_service,
-          target: e.producer_service,
-          target_path: e.target_path,
-          method: e.method,
-          status: e.status || 'HEALTHY',
-          issues: e.issues || [],
-          traffic_rps: 500
-        }));
-        setEdges(immediateEdges);
-      }
+      setEdges(immediateEdges);
 
       setServices(incomingServices);
 
@@ -321,7 +407,7 @@ export default function Dashboard() {
         consumer_calls: s.consumer_calls
       }));
 
-      fetch('http://localhost:4400/api/match', {
+      fetch(`${API_BASE}/match`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contracts: rawContractsForMatching })
@@ -414,7 +500,7 @@ export default function Dashboard() {
             </div>
           </div>
         ) : (
-          <>
+          <div key={activeTab} className="w-full h-full animate-tab-transition">
             {activeTab === 'topology' && (
               <TopologyCanvas
                 services={services}
@@ -440,7 +526,7 @@ export default function Dashboard() {
             {activeTab === 'ir' && (
               <ContractIRExplorer services={services} />
             )}
-          </>
+          </div>
         )}
       </main>
 

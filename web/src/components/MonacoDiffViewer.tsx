@@ -55,7 +55,8 @@ export const MonacoDiffViewer: React.FC<MonacoDiffViewerProps> = ({ services = [
   const isSelectedPrOpen = selectedPR ? (selectedPR.is_open || selectedPR.state === 'open') : false;
   const activeHeadBranch = selectedPR?.head_branch || headBranch;
   const activeBaseBranch = selectedPR?.base_branch || baseBranch;
-  const currentPrUrl = selectedPR?.html_url || `https://github.com/pujith-vijay-swamy/UserService/pull/${prNumber}`;
+  const defaultPrBaseUrl = propsPr?.pr_url ? propsPr.pr_url.replace(/\/pull\/\d+$/, '') : 'https://github.com/enterprise-org/microservice';
+  const currentPrUrl = selectedPR?.html_url || `${defaultPrBaseUrl}/pull/${prNumber}`;
 
   // Automatically select version pair (v1 vs v2) or breaking pair on initial load or service update
   useEffect(() => {
@@ -84,7 +85,7 @@ export const MonacoDiffViewer: React.FC<MonacoDiffViewerProps> = ({ services = [
       setSelectedServiceA(services[0].id);
       setSelectedServiceB(services[1].id);
     }
-  }, [services]);
+  }, [services, propsPr?.has_open_pr]);
 
   const serviceA = services.find(s => s.id === selectedServiceA) || (services.length > 0 ? services[0] : null);
   const serviceB = services.find(s => s.id === selectedServiceB) || (services.length > 1 ? services[1] : null);
@@ -132,9 +133,9 @@ export const MonacoDiffViewer: React.FC<MonacoDiffViewerProps> = ({ services = [
 
           <div>
             <div className="font-extrabold text-white">
-              <span className="text-emerald-400 font-mono">user-service-v1 (base: {activeBaseBranch})</span>
+              <span className="text-emerald-400 font-mono">{labelA} (base: {activeBaseBranch})</span>
               <span className="mx-2 text-rose-400 font-bold">⟵</span>
-              <span className="text-rose-400 font-mono">user-service-v2 (head: {activeHeadBranch})</span>
+              <span className="text-rose-400 font-mono">{labelB} (head: {activeHeadBranch})</span>
             </div>
             <p className="text-[10.5px] text-neutral-400 mt-0.5">AST Schema Diff comparing proposed PR #{prNumber} code against production baseline</p>
           </div>
@@ -273,7 +274,7 @@ export const MonacoDiffViewer: React.FC<MonacoDiffViewerProps> = ({ services = [
                   <span>{labelA}</span>
                 </div>
                 <span className="text-[11px] text-neutral-400 block truncate mt-0.5">{serviceA?.repository || 'AST Baseline Schema'}</span>
-                <span className="text-[10px] text-neutral-500">ROUTES: {serviceA?.routes_count || 3}</span>
+                <span className="text-[10px] text-neutral-500">ROUTES: {serviceA?.routes_count ?? 0}</span>
               </div>
 
               <div className="border-t border-neutral-800 pt-2.5">
@@ -283,7 +284,7 @@ export const MonacoDiffViewer: React.FC<MonacoDiffViewerProps> = ({ services = [
                   <span>{labelB}</span>
                 </div>
                 <span className="text-[11px] text-neutral-400 block truncate mt-0.5">{serviceB?.repository || 'AST Target Schema'}</span>
-                <span className="text-[10px] text-neutral-500">ROUTES: {serviceB?.routes_count || 3}</span>
+                <span className="text-[10px] text-neutral-500">ROUTES: {serviceB?.routes_count ?? 0}</span>
               </div>
 
               <div className="border-t border-neutral-800 pt-2 text-[11px] text-neutral-400 uppercase">
@@ -292,15 +293,26 @@ export const MonacoDiffViewer: React.FC<MonacoDiffViewerProps> = ({ services = [
             </div>
           </div>
 
-          {/* Remediation Box */}
-          <div className="mt-auto bg-black p-3.5 border-2 border-neutral-800 text-xs">
-            <h4 className="font-bold text-white mb-1.5 flex items-center gap-1.5 uppercase">
-              <ShieldCheck className="w-4 h-4 text-blue-400" />
-              Automated Fix Guidance
-            </h4>
-            <p className="text-neutral-400 leading-relaxed text-[11px]">
-              Ensure target microservice maintains backwards compatibility for routes and field schemas used by upstream consumers.
-            </p>
+          {/* Remediation & AI Explanation Box */}
+          <div className="mt-auto space-y-3">
+            <div className="bg-[#120f24] border-2 border-indigo-700 p-3.5 text-xs rounded text-indigo-200">
+              <h4 className="font-extrabold text-indigo-400 mb-1.5 flex items-center gap-1.5 uppercase text-[10px] tracking-wider">
+                ✨ AI EXPLANATION (ADVISORY)
+              </h4>
+              <p className="text-[11px] leading-relaxed">
+                The schema mismatch on route target was evaluated using AST metadata. Field deletions or type shifts directly impact consumer client JSON deserialization.
+              </p>
+            </div>
+
+            <div className="bg-black p-3.5 border-2 border-neutral-800 text-xs">
+              <h4 className="font-bold text-white mb-1.5 flex items-center gap-1.5 uppercase">
+                <ShieldCheck className="w-4 h-4 text-blue-400" />
+                Automated Fix Guidance
+              </h4>
+              <p className="text-neutral-400 leading-relaxed text-[11px]">
+                Ensure target microservice maintains backwards compatibility for routes and field schemas used by upstream consumers.
+              </p>
+            </div>
           </div>
 
         </div>

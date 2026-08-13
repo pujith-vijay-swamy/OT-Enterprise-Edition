@@ -2,13 +2,20 @@ from dataclasses import dataclass, field, asdict
 from typing import List, Dict, Any, Optional
 from repotrace.ir import ServiceContract, EndpointRoute, ConsumerCall, normalize_route_path
 
+from repotrace.verifier import ContractVerifier
+from repotrace.explainer import LLMExplainer
+
 @dataclass
 class ServiceDependencyEdge:
     consumer_service: str
     producer_service: str
     consumer_call: ConsumerCall
     matched_route: Optional[EndpointRoute]
-    status: str  # HEALTHY | WARN | BREAKING | MISSING_PRODUCER
+    status: str  # HEALTHY | WARN | HIGH_CONFIDENCE_BREAK | POSSIBLE_BREAK | MISSING_PRODUCER
+    confidence_tier: str = "HEALTHY"  # HIGH_CONFIDENCE_BREAK | POSSIBLE_BREAK | HEALTHY
+    verification_status: str = "confirmed"  # confirmed | unconfirmed | not_run
+    verification_note: str = ""
+    ai_explanation: Optional[str] = None
     issues: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -23,6 +30,10 @@ class ServiceDependencyEdge:
             "producer_file": self.matched_route.source_file if self.matched_route else None,
             "producer_line": self.matched_route.line_number if self.matched_route else None,
             "status": self.status,
+            "confidence_tier": self.confidence_tier,
+            "verification_status": self.verification_status,
+            "verification_note": self.verification_note,
+            "ai_explanation": self.ai_explanation,
             "issues": self.issues
         }
 
@@ -58,6 +69,8 @@ class CrossRepoMatcher:
 
     def __init__(self, contracts: Optional[List[ServiceContract]] = None):
         self.contracts = contracts or []
+        self.verifier = ContractVerifier()
+        self.explainer = LLMExplainer()
 
     def build_topology(self, contracts: Optional[List[ServiceContract]] = None) -> Dict[str, Any]:
         target_contracts = contracts if contracts is not None else self.contracts
@@ -90,6 +103,7 @@ class CrossRepoMatcher:
                         matched_any_producer = True
                         
                         status = "HEALTHY"
+                        confidence_tier = "HEALTHY"
                         issues = []
 
                         # Check expected response fields compatibility
@@ -97,8 +111,32 @@ class CrossRepoMatcher:
                             available_fields = {f.name for f in route.response_schema.fields}
                             missing_fields = [f for f in call.expected_response_fields if f not in available_fields]
                             if missing_fields:
-                                status = "BREAKING"
+                                is_dynamic = call.match_confidence == "dynamic" or route.match_confidence == "dynamic"
+                                confidence_tier = "POSSIBLE_BREAK" if is_dynamic else "HIGH_CONFIDENCE_BREAK"
+                                status = confidence_tier
                                 issues.append(f"Response schema missing fields expected by consumer: {', '.join(missing_fields)}")
+
+                        v_res = self.verifier.verify_edge(
+                            consumer_service=consumer.service_name,
+                            producer_service=producer.service_name,
+                            target_path=call.target_path,
+                            issues=issues,
+                            consumer_file=call.source_file,
+                            producer_file=route.source_file,
+                            repo_path=producer.repository
+                        )
+
+                        ai_exp = None
+                        if issues:
+                            ai_exp = self.explainer.get_explanation(
+                                change_type="FIELD_DELETED",
+                                target_route=call.target_path,
+                                field_name=issues[0],
+                                old_value="present",
+                                new_value="missing",
+                                confidence_tier=confidence_tier,
+                                verification_status=v_res["verification_status"]
+                            )
 
                         edges.append(ServiceDependencyEdge(
                             consumer_service=consumer.service_name,
@@ -106,6 +144,10 @@ class CrossRepoMatcher:
                             consumer_call=call,
                             matched_route=route,
                             status=status,
+                            confidence_tier=confidence_tier,
+                            verification_status=v_res["verification_status"],
+                            verification_note=v_res["verification_note"],
+                            ai_explanation=ai_exp,
                             issues=issues
                         ))
 
@@ -120,13 +162,43 @@ class CrossRepoMatcher:
                             route = prefix_matches[0]
                             matched_producer_keys.add((producer.service_name, route.method.upper(), route.path))
                             matched_any_producer = True
+
+                            is_dynamic = call.match_confidence == "dynamic" or route.match_confidence == "dynamic"
+                            confidence_tier = "POSSIBLE_BREAK" if is_dynamic else "HIGH_CONFIDENCE_BREAK"
+                            status = confidence_tier
+                            issues = [f"Route path mutated from baseline contract: Consumer calls '{call.target_path}' but producer hosts '{route.path}'"]
+
+                            v_res = self.verifier.verify_edge(
+                                consumer_service=consumer.service_name,
+                                producer_service=producer.service_name,
+                                target_path=call.target_path,
+                                issues=issues,
+                                consumer_file=call.source_file,
+                                producer_file=route.source_file,
+                                repo_path=producer.repository
+                            )
+
+                            ai_exp = self.explainer.get_explanation(
+                                change_type="ROUTE_MUTATED",
+                                target_route=call.target_path,
+                                field_name="route_path",
+                                old_value=route.path,
+                                new_value=call.target_path,
+                                confidence_tier=confidence_tier,
+                                verification_status=v_res["verification_status"]
+                            )
+
                             edges.append(ServiceDependencyEdge(
                                 consumer_service=consumer.service_name,
                                 producer_service=producer.service_name,
                                 consumer_call=call,
                                 matched_route=route,
-                                status="BREAKING",
-                                issues=[f"Route path mutated from baseline contract: Consumer calls '{call.target_path}' but producer hosts '{route.path}'"]
+                                status=status,
+                                confidence_tier=confidence_tier,
+                                verification_status=v_res["verification_status"],
+                                verification_note=v_res["verification_note"],
+                                ai_explanation=ai_exp,
+                                issues=issues
                             ))
 
                 if not matched_any_producer:

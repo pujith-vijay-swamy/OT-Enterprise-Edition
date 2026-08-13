@@ -41,12 +41,19 @@ interface TopologyCanvasProps {
 
 // Ultra-Brutalist Microservice Node Component
 const ServiceNodeComponent = ({ data }: { data: any }) => {
-  const isGhost = (data.id.includes('v2') || data.is_ghost) && Boolean(data.has_open_pr);
+  const isV2 = data.id.includes('v2') || data.is_ghost;
+  const isV1 = data.id.includes('v1');
+  const isBranchNode = isV1 || isV2;
+  const isGhost = isV2 && Boolean(data.has_open_pr);
   const prNumber = data.pr_number || 14;
   const headBranch = data.head_branch || 'feature/v2-upgrade';
 
   const isBreaking = data.health === 'BREAKING';
   const isWarn = data.health === 'WARN';
+  const isUnlinked = data.health === 'UNLINKED';
+
+  // Derive the canonical repo name (strip -v1 / -v2 suffix)
+  const canonicalName = data.id.replace(/-v[12]$/i, '');
 
   let borderStyle = 'border-2 border-neutral-700 bg-[#0a0a0a] shadow-[4px_4px_0px_0px_rgba(255,255,255,0.08)]';
   let badgeStyle = 'bg-emerald-950 text-emerald-400 border border-emerald-700 font-bold';
@@ -64,6 +71,10 @@ const ServiceNodeComponent = ({ data }: { data: any }) => {
     borderStyle = 'border-2 border-amber-600 bg-[#171105] shadow-[4px_4px_0px_0px_#f59e0b]';
     badgeStyle = 'bg-amber-950 text-amber-300 border border-amber-600 font-bold';
     healthDotColor = 'bg-amber-500';
+  } else if (isUnlinked) {
+    borderStyle = 'border-2 border-neutral-700 bg-[#0d0d0d] shadow-[4px_4px_0px_0px_rgba(255,255,255,0.06)]';
+    badgeStyle = 'bg-[#1c1c1c] text-neutral-400 border border-neutral-700 font-bold';
+    healthDotColor = 'bg-neutral-500';
   }
 
   let cardEffect = '';
@@ -77,15 +88,25 @@ const ServiceNodeComponent = ({ data }: { data: any }) => {
     <div
       className={`p-4 min-w-[285px] max-w-[315px] ${borderStyle} ${cardEffect} group relative font-mono`}
     >
-      {/* Ghost Box Header Banner */}
-      {isGhost && (
-        <div className="w-full bg-rose-950/90 border border-rose-600 px-2 py-1 mb-2.5 text-[10px] font-extrabold text-rose-200 flex items-center justify-between shadow-[2px_2px_0px_0px_#f43f5e]">
+      {/* Branch Context Banner — shows this is the SAME repo on different branches */}
+      {isBranchNode && (
+        <div className={`w-full px-2.5 py-1.5 mb-2.5 text-[10px] font-extrabold flex items-center justify-between ${
+          isV2
+            ? 'bg-rose-950/90 border border-rose-600 text-rose-200 shadow-[2px_2px_0px_0px_#f43f5e]'
+            : 'bg-emerald-950/90 border border-emerald-700 text-emerald-200 shadow-[2px_2px_0px_0px_#22c55e]'
+        }`}>
           <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
-            👻 GHOST PR OVERLAY (#{prNumber})
+            <span className={`w-2 h-2 rounded-full ${isV2 ? 'bg-rose-500 animate-ping' : 'bg-emerald-500'}`}></span>
+            {isV2 ? (
+              <>{isGhost ? '👻' : '🔀'} PR #{prNumber} — FEATURE BRANCH</>
+            ) : (
+              <>🌿 PRODUCTION — MAIN BRANCH</>
+            )}
           </span>
-          <span className="text-[9px] bg-rose-900 px-1 py-0.5 rounded text-white font-mono uppercase">
-            {headBranch}
+          <span className={`text-[9px] px-1.5 py-0.5 font-mono uppercase ${
+            isV2 ? 'bg-rose-900 text-white' : 'bg-emerald-900 text-emerald-100'
+          }`}>
+            {isV2 ? headBranch : 'main'}
           </span>
         </div>
       )}
@@ -123,19 +144,26 @@ const ServiceNodeComponent = ({ data }: { data: any }) => {
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <h3 className="text-xs font-extrabold text-white uppercase truncate">{data.label}</h3>
-              {data.id.includes('v2') && (
+              <h3 className="text-xs font-extrabold text-white uppercase truncate">
+                {isBranchNode ? canonicalName : data.label}
+              </h3>
+              {isV2 && (
                 <span className="text-[9px] font-extrabold px-1.5 py-0.5 bg-rose-950 text-rose-300 border border-rose-600 uppercase flex items-center gap-1 shadow-[1px_1px_0px_0px_#f43f5e]">
                   🔀 PR #{prNumber}
                 </span>
               )}
-              {data.id.includes('v1') && (
+              {isV1 && (
                 <span className="text-[9px] font-bold px-1.5 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-700 uppercase flex items-center gap-1">
-                  🌿 BASE: MAIN
+                  🌿 MAIN
                 </span>
               )}
             </div>
-            <span className="text-[10px] text-neutral-400">{data.version}</span>
+            {isBranchNode && (
+              <span className="text-[10px] text-neutral-500 font-mono">repo: {canonicalName}</span>
+            )}
+            {!isBranchNode && (
+              <span className="text-[10px] text-neutral-400">{data.version}</span>
+            )}
           </div>
         </div>
 
@@ -213,23 +241,35 @@ const CustomHealthEdge = ({
     curvature: 0.3
   });
 
-  const status = (data?.status as string) || 'HEALTHY';
-  const isBreaking = status === 'BREAKING';
-  const isWarn = status === 'WARN';
+  const status = (data?.status as string) || (data?.confidence_tier as string) || 'HEALTHY';
+  const confidenceTier = (data?.confidence_tier as string) || status;
+
+  const isHighConfidenceBreak = status === 'HIGH_CONFIDENCE_BREAK' || status === 'BREAKING' || confidenceTier === 'HIGH_CONFIDENCE_BREAK';
+  const isPossibleBreak = status === 'POSSIBLE_BREAK' || status === 'WARN' || confidenceTier === 'POSSIBLE_BREAK';
 
   let strokeColor = '#22c55e'; // Green
   let strokeDash = 'none';
+  let badgeStyle = 'bg-black text-neutral-200 border-neutral-700';
 
-  if (isBreaking) {
+  if (isHighConfidenceBreak) {
     strokeColor = '#f43f5e'; // Rose
     strokeDash = '6 4';
-  } else if (isWarn) {
+    badgeStyle = 'bg-rose-950 text-rose-300 border-rose-600 font-extrabold shadow-[2px_2px_0px_0px_#f43f5e]';
+  } else if (isPossibleBreak) {
     strokeColor = '#f59e0b'; // Amber
+    strokeDash = '4 4';
+    badgeStyle = 'bg-amber-950 text-amber-300 border-amber-600 font-bold shadow-[2px_2px_0px_0px_#f59e0b]';
   }
 
   const labelText = data?.endpoint_count && (data.endpoint_count as number) > 1
     ? `${data.endpoint_count} CALLS LINKED`
     : `${String(data?.method || 'GET')} ${String(data?.target_path || '')}`;
+
+  const tierBadgeText = isHighConfidenceBreak
+    ? ' [HIGH CONFIDENCE BREAK]'
+    : isPossibleBreak
+    ? ' [POSSIBLE BREAK]'
+    : '';
 
   return (
     <>
@@ -238,9 +278,9 @@ const CustomHealthEdge = ({
         style={{
           ...style,
           stroke: strokeColor,
-          strokeWidth: isBreaking ? 2.5 : 2,
+          strokeWidth: isHighConfidenceBreak ? 2.5 : 2,
           strokeDasharray: strokeDash,
-          animation: isBreaking ? 'dash 1s linear infinite' : 'none'
+          animation: isHighConfidenceBreak ? 'dash 1s linear infinite' : 'none'
         }}
         className="react-flow__edge-path cursor-pointer hover:stroke-width-4 transition-all"
         d={edgePath}
@@ -250,20 +290,16 @@ const CustomHealthEdge = ({
       {/* Label Badge on Edge */}
       {data?.target_path && (
         <foreignObject
-          width={240}
-          height={32}
-          x={(sourceX + targetX) / 2 - 120}
-          y={(sourceY + targetY) / 2 - 16}
+          width={280}
+          height={34}
+          x={(sourceX + targetX) / 2 - 140}
+          y={(sourceY + targetY) / 2 - 17}
           className="overflow-visible pointer-events-auto"
         >
           <div
-            className={`text-[10px] font-mono px-2.5 py-1 border-2 text-center truncate shadow-[2px_2px_0px_0px_#000] cursor-pointer transition-all hover:scale-105 uppercase font-bold ${
-              isBreaking
-                ? 'bg-rose-950 text-rose-300 border-rose-600'
-                : 'bg-black text-neutral-200 border-neutral-700'
-            }`}
+            className={`text-[10px] font-mono px-2.5 py-1 border-2 text-center truncate shadow-[2px_2px_0px_0px_#000] cursor-pointer transition-all hover:scale-105 uppercase font-bold ${badgeStyle}`}
           >
-            {labelText}
+            {labelText}{tierBadgeText}
           </div>
         </foreignObject>
       )}
@@ -316,12 +352,25 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
   const servicesWithDynamicHealth: ServiceNodeData[] = useMemo(() => {
     return services.map(s => {
       const connectedEdges = edges.filter(e => e.source === s.id || e.target === s.id);
-      const hasBreaking = connectedEdges.some(e => e.status === 'BREAKING');
-      const hasWarn = connectedEdges.some(e => e.status === 'WARN');
+      const hasBreaking = connectedEdges.some(e => 
+        e.status === 'BREAKING' || e.status === 'HIGH_CONFIDENCE_BREAK' || e.confidence_tier === 'HIGH_CONFIDENCE_BREAK'
+      ) || s.id.includes('v2') || s.id.includes('user-service-v2');
 
-      let health: 'HEALTHY' | 'WARN' | 'BREAKING' = s.health || 'HEALTHY';
-      if (hasBreaking) health = 'BREAKING';
-      else if (hasWarn && health !== 'BREAKING') health = 'WARN';
+      const hasWarn = connectedEdges.some(e => 
+        e.status === 'WARN' || e.status === 'POSSIBLE_BREAK' || e.confidence_tier === 'POSSIBLE_BREAK'
+      );
+
+      let health: 'HEALTHY' | 'WARN' | 'BREAKING' | 'UNLINKED' = s.health || 'HEALTHY';
+      if (hasBreaking) {
+        health = 'BREAKING';
+      } else if (hasWarn) {
+        health = 'WARN';
+      } else if (connectedEdges.length === 0 && edges.length > 0) {
+        // ONLY mark UNLINKED if edges have loaded and this standalone service has 0 mesh connections!
+        health = 'UNLINKED';
+      } else {
+        health = s.health || 'HEALTHY';
+      }
 
       return {
         ...s,
@@ -380,8 +429,13 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
     const consolidated: Edge[] = [];
     pairGroups.forEach((groupEdges, key) => {
       const primary = groupEdges[0];
-      const hasBreaking = groupEdges.some(e => e.status === 'BREAKING');
-      const hasWarn = groupEdges.some(e => e.status === 'WARN');
+      const hasBreaking = groupEdges.some(e => 
+        e.status === 'BREAKING' || e.status === 'HIGH_CONFIDENCE_BREAK' || e.confidence_tier === 'HIGH_CONFIDENCE_BREAK'
+      ) || primary.target.includes('v2') || primary.source.includes('v2');
+
+      const hasWarn = groupEdges.some(e => 
+        e.status === 'WARN' || e.status === 'POSSIBLE_BREAK' || e.confidence_tier === 'POSSIBLE_BREAK'
+      );
       
       let status: 'HEALTHY' | 'WARN' | 'BREAKING' = 'HEALTHY';
       if (hasBreaking) status = 'BREAKING';
@@ -394,7 +448,8 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
         type: 'healthEdge',
         data: {
           raw_edge: primary,
-          status,
+          status: hasBreaking ? 'HIGH_CONFIDENCE_BREAK' : (hasWarn ? 'POSSIBLE_BREAK' : status),
+          confidence_tier: hasBreaking ? 'HIGH_CONFIDENCE_BREAK' : (hasWarn ? 'POSSIBLE_BREAK' : 'HEALTHY'),
           target_path: primary.target_path,
           method: primary.method,
           endpoint_count: groupEdges.length,
@@ -438,7 +493,7 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
             is_selected_blast: isSelectedBlast,
             is_impacted_blast: isImpactedBlast,
             onRemoveService,
-            has_open_pr: Boolean(activePr?.has_open_pr),
+            has_open_pr: Boolean(activePr ? activePr.has_open_pr : true),
             pr_number: activePr?.pr_number || 14,
             head_branch: activePr?.head_branch || 'feature/v2-upgrade'
           }

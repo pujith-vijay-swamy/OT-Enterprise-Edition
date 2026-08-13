@@ -1,4 +1,4 @@
-export type HealthStatus = 'HEALTHY' | 'WARN' | 'BREAKING';
+export type HealthStatus = 'HEALTHY' | 'WARN' | 'BREAKING' | 'UNLINKED';
 
 export type ServiceType = 'producer' | 'consumer' | 'fullstack';
 
@@ -65,7 +65,11 @@ export interface ServiceEdgeData {
   target: string;
   target_path: string;
   method: string;
-  status: HealthStatus;
+  status: HealthStatus | 'HIGH_CONFIDENCE_BREAK' | 'POSSIBLE_BREAK';
+  confidence_tier?: 'HIGH_CONFIDENCE_BREAK' | 'POSSIBLE_BREAK' | 'HEALTHY';
+  verification_status?: 'confirmed' | 'unconfirmed' | 'not_run';
+  verification_note?: string;
+  ai_explanation?: string;
   issues: string[];
   traffic_rps: number;
 }
@@ -93,6 +97,10 @@ export interface ContractDrift {
   description: string;
   git_context: GitCommitContext;
   remediation_suggestion: string;
+  confidence_tier?: 'HIGH_CONFIDENCE_BREAK' | 'POSSIBLE_BREAK' | 'HEALTHY';
+  verification_status?: 'confirmed' | 'unconfirmed' | 'not_run';
+  verification_note?: string;
+  ai_explanation?: string;
 }
 
 export interface GovernancePolicy {

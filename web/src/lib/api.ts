@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:4400/api';
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4400/api';
 
 export interface HealthCheckResponse {
   status: string;
@@ -45,7 +45,7 @@ export interface WorkflowInstallResult {
 export async function checkEngineHealth(): Promise<boolean> {
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 1500);
+    const timer = setTimeout(() => controller.abort(), 3500);
     const res = await fetch(`${API_BASE}/health`, { cache: 'no-store', signal: controller.signal });
     clearTimeout(timer);
     if (res.ok) {
@@ -241,4 +241,33 @@ export async function fetchLatestOpenPR(owner: string, repo: string): Promise<La
     // Backend unreachable — fall back to defaults
   }
   return null;
+}
+
+export interface GeminiKeyStatus {
+  configured: boolean;
+  key_masked: string;
+  model: string;
+}
+
+export async function fetchGeminiKeyStatus(): Promise<GeminiKeyStatus> {
+  try {
+    const res = await fetch(`${API_BASE}/config/gemini_key`, { cache: 'no-store' });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {}
+  return { configured: false, key_masked: '', model: 'gemini-3.5-flash-lite' };
+}
+
+export async function saveGeminiApiKey(apiKey: string): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`${API_BASE}/config/gemini_key`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ api_key: apiKey })
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to update Gemini API key');
+  }
+  return data;
 }

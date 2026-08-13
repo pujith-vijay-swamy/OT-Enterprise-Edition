@@ -199,64 +199,140 @@ export const INITIAL_SERVICES: ServiceNodeData[] = [
 ];
 
 export const INITIAL_EDGES: ServiceEdgeData[] = [
+  // Healthy baseline connections to user-service-v1
   {
-    id: 'e-checkout-user',
+    id: 'e-checkout-user-v1',
     source: 'checkout-frontend',
-    target: 'user-service',
+    target: 'user-service-v1',
     target_path: '/api/v1/users/{user_id}',
     method: 'GET',
-    status: 'BREAKING',
+    status: 'HEALTHY',
+    confidence_tier: 'HEALTHY',
+    verification_status: 'confirmed',
+    verification_note: 'No contract issues detected.',
+    issues: [],
+    traffic_rps: 890
+  },
+  {
+    id: 'e-payment-user-v1',
+    source: 'payment-gateway-service',
+    target: 'user-service-v1',
+    target_path: '/api/v1/users/{user_id}',
+    method: 'GET',
+    status: 'HEALTHY',
+    confidence_tier: 'HEALTHY',
+    verification_status: 'confirmed',
+    verification_note: 'No contract issues detected.',
+    issues: [],
+    traffic_rps: 1240
+  },
+  {
+    id: 'e-notification-user-v1',
+    source: 'notification-service',
+    target: 'user-service-v1',
+    target_path: '/api/v1/users/{user_id}',
+    method: 'GET',
+    status: 'HEALTHY',
+    confidence_tier: 'HEALTHY',
+    verification_status: 'confirmed',
+    verification_note: 'No contract issues detected.',
+    issues: [],
+    traffic_rps: 340
+  },
+  {
+    id: 'e-order-user-v1',
+    source: 'order-service',
+    target: 'user-service-v1',
+    target_path: '/api/v1/users/{user_id}',
+    method: 'GET',
+    status: 'HEALTHY',
+    confidence_tier: 'HEALTHY',
+    verification_status: 'confirmed',
+    verification_note: 'No contract issues detected.',
+    issues: [],
+    traffic_rps: 650
+  },
+
+  // Breaking PR drift connections to user-service-v2 (PR head version)
+  {
+    id: 'e-checkout-user-v2',
+    source: 'checkout-frontend',
+    target: 'user-service-v2',
+    target_path: '/api/v1/users/{user_id}',
+    method: 'GET',
+    status: 'HIGH_CONFIDENCE_BREAK',
+    confidence_tier: 'HIGH_CONFIDENCE_BREAK',
+    verification_status: 'confirmed',
+    verification_note: 'AST contract boundary drift confirmed across service repositories.',
+    ai_explanation: 'AI Advisory (Gemini 3.5): Static AST boundary analysis confirmed breaking contract drift on /api/v1/users/{user_id}. Consumer checkout-frontend expects baseline signature, but producer user-service-v2 requires mutated path signature /api/v1/users/{tenant_id}/{user_id}.',
     issues: [
-      "Endpoint 'GET /api/v1/users/{user_id}' was removed in v2.0.0",
-      "Consumer expects field 'email' which was renamed to 'user_email'",
-      "Consumer expects field 'is_active' which was deleted from producer response schema"
+      "Route path mutated from baseline contract: Consumer calls '/api/v1/users/{user_id}' but producer hosts '/api/v1/users/{tenant_id}/{user_id}'",
+      "Consumer expects field 'email' which was renamed to 'user_email'"
     ],
     traffic_rps: 890
   },
   {
-    id: 'e-payment-user',
-    source: 'payment-gateway',
-    target: 'user-service',
+    id: 'e-payment-user-v2',
+    source: 'payment-gateway-service',
+    target: 'user-service-v2',
     target_path: '/api/v1/users/{user_id}',
     method: 'GET',
-    status: 'BREAKING',
+    status: 'HIGH_CONFIDENCE_BREAK',
+    confidence_tier: 'HIGH_CONFIDENCE_BREAK',
+    verification_status: 'confirmed',
+    verification_note: 'Confirmed by static AST schema mismatch.',
+    ai_explanation: 'AI Advisory (Gemini 3.5): Path signature mutated to require tenant_id parameter. Consumer payment-gateway-service will receive 404 Not Found at runtime.',
     issues: [
-      "Endpoint signature changed to require tenant_id path parameter",
+      "Route path mutated from baseline contract: Consumer calls '/api/v1/users/{user_id}' but producer hosts '/api/v1/users/{tenant_id}/{user_id}'",
       "Field 'email' missing in payload"
     ],
     traffic_rps: 1240
   },
   {
-    id: 'e-notification-user',
+    id: 'e-notification-user-v2',
     source: 'notification-service',
-    target: 'user-service',
+    target: 'user-service-v2',
     target_path: '/api/v1/users/{user_id}',
     method: 'GET',
-    status: 'BREAKING',
+    status: 'HIGH_CONFIDENCE_BREAK',
+    confidence_tier: 'HIGH_CONFIDENCE_BREAK',
+    verification_status: 'confirmed',
+    verification_note: 'AST contract boundary drift confirmed.',
+    ai_explanation: 'AI Advisory (Gemini 3.5): Missing expected response schema field email in user-service-v2. Downstream email alerts will fail.',
     issues: [
-      "Missing expected field 'email' in user-service response model"
+      "Route path mutated from baseline contract: Consumer calls '/api/v1/users/{user_id}' but producer hosts '/api/v1/users/{tenant_id}/{user_id}'",
+      "Missing expected field 'email' in user-service-v2 response model"
     ],
     traffic_rps: 340
   },
   {
+    id: 'e-order-user-v2',
+    source: 'order-service',
+    target: 'user-service-v2',
+    target_path: '/api/v1/users/{user_id}',
+    method: 'GET',
+    status: 'HIGH_CONFIDENCE_BREAK',
+    confidence_tier: 'HIGH_CONFIDENCE_BREAK',
+    verification_status: 'confirmed',
+    verification_note: 'Confirmed by static AST schema mismatch.',
+    ai_explanation: 'AI Advisory (Gemini 3.5): Route path mutated from baseline contract. Order processing pipeline will fail to resolve user details.',
+    issues: [
+      "Route path mutated from baseline contract: Consumer calls '/api/v1/users/{user_id}' but producer hosts '/api/v1/users/{tenant_id}/{user_id}'"
+    ],
+    traffic_rps: 650
+  },
+  {
     id: 'e-order-payment',
     source: 'order-service',
-    target: 'payment-gateway',
+    target: 'payment-gateway-service',
     target_path: '/api/v1/payments/charge',
     method: 'POST',
     status: 'HEALTHY',
+    confidence_tier: 'HEALTHY',
+    verification_status: 'confirmed',
+    verification_note: 'No contract issues detected.',
     issues: [],
     traffic_rps: 980
-  },
-  {
-    id: 'e-analytics-order',
-    source: 'analytics-worker',
-    target: 'order-service',
-    target_path: '/api/v1/orders/{order_id}',
-    method: 'GET',
-    status: 'HEALTHY',
-    issues: [],
-    traffic_rps: 520
   }
 ];
 

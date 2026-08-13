@@ -9,6 +9,10 @@ import urllib.error
 import threading
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
+import socketserver
+
+class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
+    daemon_threads = True
 from typing import Dict, Any, List, Tuple
 
 engine_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -115,6 +119,43 @@ def save_pr_gate_config():
             json.dump({"watched_repos": PR_GATE_WATCHED_REPOS}, f, indent=2)
     except Exception:
         pass
+
+def _get_default_github_owner_repo():
+    env_repo = os.getenv("GITHUB_REPOSITORY")
+    if env_repo and "/" in env_repo:
+        parts = env_repo.split("/")
+        return parts[0], parts[1]
+    try:
+        res = subprocess.run(["git", "config", "--get", "remote.origin.url"], capture_output=True, text=True, timeout=2)
+        if res.returncode == 0 and res.stdout.strip():
+            url = res.stdout.strip().replace("https://github.com/", "").replace("git@github.com:", "").replace(".git", "")
+            if "/" in url:
+                parts = url.split("/")
+                return parts[0], parts[1]
+    except Exception:
+        pass
+    return "enterprise-org", "main-service"
+
+def auto_enable_pr_gate_watcher(repo_path_or_url: str):
+    """Automatically adds a repository to PR Gate Watcher list upon scanning."""
+    try:
+        cleaned = repo_path_or_url.strip()
+        owner, repo = None, None
+        if 'github.com/' in cleaned:
+            parts = cleaned.split('github.com/')[1].replace('.git', '').rstrip('/').split('/')
+            if len(parts) >= 2:
+                owner, repo = parts[0], parts[1]
+        else:
+            owner, repo = _get_default_github_owner_repo()
+        
+        if owner and repo:
+            entry = {"owner": owner, "repo": repo}
+            if entry not in PR_GATE_WATCHED_REPOS:
+                PR_GATE_WATCHED_REPOS.append(entry)
+                save_pr_gate_config()
+                print(f"[PR-GATE] [AUTO-ENABLED] PR Check Watcher auto-enabled for {owner}/{repo}")
+    except Exception as e:
+        print(f"[PR-GATE] Auto-enable error: {e}")
 
 def auto_enable_pr_gate_for_repo(raw_path: str):
     """Automatically add a GitHub repo to PR_GATE_WATCHED_REPOS when selected or scanned."""
@@ -561,6 +602,15 @@ class RequestHandler(BaseHTTPRequestHandler):
                     "enabled": PR_GATE_ENABLED
                 })
 
+            elif self.path == '/api/config/gemini_key':
+                key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or ""
+                masked = f"{key[:6]}...{key[-4:]}" if len(key) >= 10 else ("***" if key else "")
+                self.send_json_response(200, {
+                    "configured": bool(key),
+                    "key_masked": masked,
+                    "model": "gemini-3.5-flash-lite"
+                })
+
             elif self.path == '/api/pr-gate/config':
                 self.send_json_response(200, {
                     "watched_repos": PR_GATE_WATCHED_REPOS,
@@ -574,8 +624,9 @@ class RequestHandler(BaseHTTPRequestHandler):
                 from urllib.parse import urlparse, parse_qs
                 parsed = urlparse(self.path)
                 params = parse_qs(parsed.query)
-                owner = params.get('owner', ['pujith-vijay-swamy'])[0]
-                repo = params.get('repo', ['UserService'])[0]
+                def_owner, def_repo = _get_default_github_owner_repo()
+                owner = params.get('owner', [def_owner])[0]
+                repo = params.get('repo', [def_repo])[0]
                 
                 try:
                     api_url = f"https://api.github.com/repos/{owner}/{repo}/pulls?state=all&sort=created&direction=desc&per_page=20"
@@ -645,7 +696,34 @@ class RequestHandler(BaseHTTPRequestHandler):
             else:
                 body = {}
 
-            if self.path == '/api/auth/github/login_demo':
+            if self.path == '/api/config/gemini_key':
+                api_key = body.get("api_key", "").strip()
+                if api_key:
+                    os.environ["GEMINI_API_KEY"] = api_key
+                    os.environ["GOOGLE_API_KEY"] = api_key
+                    env_path = os.path.join(engine_dir, "..", ".env")
+                    lines = []
+                    if os.path.exists(env_path):
+                        with open(env_path, "r", encoding="utf-8") as f:
+                            lines = f.readlines()
+                    updated = False
+                    new_lines = []
+                    for line in lines:
+                        if line.startswith("GEMINI_API_KEY=") or line.startswith("GOOGLE_API_KEY="):
+                            new_lines.append(f"GEMINI_API_KEY={api_key}\n")
+                            updated = True
+                        else:
+                            new_lines.append(line)
+                    if not updated:
+                        new_lines.append(f"\nGEMINI_API_KEY={api_key}\n")
+                    with open(env_path, "w", encoding="utf-8") as f:
+                        f.writelines(new_lines)
+
+                    self.send_json_response(200, {"success": True, "message": "Gemini API Key updated and saved to .env"})
+                else:
+                    self.send_json_response(400, {"error": "API key cannot be empty"})
+
+            elif self.path == '/api/auth/github/login_demo':
                 CURRENT_USER_SESSION["authenticated"] = True
                 CURRENT_USER_SESSION["user"] = {
                     "login": "alex_dev",
@@ -1056,7 +1134,7 @@ jobs:
 
 def run(port=4400):
     server_address = ('', port)
-    httpd = HTTPServer(server_address, RequestHandler)
+    httpd = ThreadedHTTPServer(server_address, RequestHandler)
     print(f"RepoTrace API Engine server running on http://localhost:{port}")
     httpd.serve_forever()
 

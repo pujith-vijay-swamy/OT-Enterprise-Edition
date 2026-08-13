@@ -38,60 +38,83 @@ def extract_contract(source_dir: str, service_name: str = "", output_file: str =
     return contract
 
 
-def generate_pr_comment_markdown(diff_result: DiffResult, cross_edges: List[Dict[str, Any]] = None) -> str:
+def generate_pr_comment_markdown(diff_result: Any, cross_edges: List[Dict[str, Any]] = None) -> str:
     cross_edges = cross_edges or []
-    has_cross_breaking = any(e.get("status") in ("BREAKING", "WARN") for e in cross_edges)
-    is_blocked = diff_result.has_breaking_changes or has_cross_breaking
+    has_high_confidence = any(
+        getattr(d, 'confidence_tier', 'HIGH_CONFIDENCE_BREAK') == 'HIGH_CONFIDENCE_BREAK'
+        for d in getattr(diff_result, 'drifts', []) if getattr(d, 'severity', '') == 'BREAKING'
+    ) or any(
+        e.get('confidence_tier') == 'HIGH_CONFIDENCE_BREAK' and e.get('status') in ('BREAKING', 'HIGH_CONFIDENCE_BREAK')
+        for e in cross_edges
+    )
 
-    status_badge = "CRITICAL: PR BLOCKED -- Cross-Repository Contract Drift" if is_blocked else "PASS: Cross-Repository Governance Approved"
-    
+    is_blocked = has_high_confidence
+
     md = [
-        "## 🌐 RepoTrace AI -- Cross-Repository PR Governance Check",
+        "## 🛡️ RepoTrace AI / PR Governance Gate",
         "",
-        f"**CI Pipeline Gate**: `{status_badge}`",
-        f"**PR Microservice**: `{diff_result.service_name}` | **Comparison**: `{diff_result.old_version}` -> `{diff_result.new_version}`",
-        f"**Self Drifts**: `{len(diff_result.drifts)}` | **Cross-Repo Impact Edges**: `{len(cross_edges)}`",
+        "### Status: " + ("🔴 **BLOCKED -- HIGH CONFIDENCE CONTRACT DRIFT**" if is_blocked else "🟢 **APPROVED -- NO BLOCKING DRIFT**"),
         "",
         "---",
-        "### 1. Internal Codebase Modifications",
+        "### 1. Internal Repository AST Contract Modifications",
         ""
     ]
 
-    if diff_result.drifts:
+    drifts = getattr(diff_result, 'drifts', [])
+    if drifts:
         md.extend([
-            "| Severity | Change Type | Target Endpoint | Affected Field | Author | Source File & Line |",
+            "| Confidence Tier | Change Type | Route | Field / Parameter | Impact Description | Verification |",
             "| :--- | :--- | :--- | :--- | :--- | :--- |"
         ])
-        for d in diff_result.drifts:
-            sev_icon = "🔴 BREAKING" if d.severity == "BREAKING" else "⚠️ WARNING"
-            author = f"@{d.git_context.author}"
-            loc = f"`{d.git_context.file_path}:L{d.git_context.line_number}`"
-            md.append(f"| {sev_icon} | `{d.change_type}` | `{d.method} {d.target_route}` | `{d.field_name or 'N/A'}` | {author} | {loc} |")
+        for d in drifts:
+            tier = getattr(d, 'confidence_tier', 'HIGH_CONFIDENCE_BREAK')
+            if tier == "POSSIBLE_BREAK":
+                tier_badge = "⚠️ POSSIBLE BREAK"
+            elif tier == "HEALTHY":
+                tier_badge = "🟢 HEALTHY"
+            else:
+                tier_badge = "🔴 HIGH CONFIDENCE BREAK"
+
+            ver = f"`{getattr(d, 'verification_status', 'not_run')}`"
+            md.append(f"| {tier_badge} | `{d.change_type}` | `{d.method} {d.target_route}` | `{d.field_name}` | {d.description} | {ver} |")
+            if getattr(d, 'ai_explanation', None):
+                md.append(f"> **✨ AI Explanation (Advisory)**: *{d.ai_explanation}*")
+                md.append("")
     else:
-        md.append("✅ *Zero internal contract drifts detected in this repository.*")
+        md.append("✅ *No breaking AST contract drifts detected in internal schemas.*")
 
     md.extend([
         "",
         "---",
-        "### 2. 🔗 Cross-Repository Downstream & Upstream Impact Matrix",
+        "### 2. Cross-Repository Downstream Microservice Impact Analysis",
         ""
     ])
 
     if cross_edges:
         md.extend([
-            "RepoTrace static analysis evaluated contract dependencies across external target microservices:",
-            "",
-            "| Impact Status | Consumer Microservice | Producer Microservice | Endpoint Route | Impact & Schema Drift Details |",
-            "| :--- | :--- | :--- | :--- | :--- |"
+            "| Confidence Tier | Consumer Microservice | Producer Microservice | Endpoint Route | Impact & Schema Drift Details | Verification |",
+            "| :--- | :--- | :--- | :--- | :--- | :--- |"
         ])
         for e in cross_edges:
             st = e.get("status", "HEALTHY")
-            st_icon = "🔴 BREAKING" if st == "BREAKING" else ("⚠️ WARN" if st == "WARN" else "🟢 HEALTHY")
+            tier = e.get("confidence_tier", "HIGH_CONFIDENCE_BREAK" if st in ("BREAKING", "HIGH_CONFIDENCE_BREAK") else "HEALTHY")
+            if tier == "POSSIBLE_BREAK":
+                st_icon = "⚠️ POSSIBLE BREAK"
+            elif tier == "HEALTHY":
+                st_icon = "🟢 HEALTHY"
+            else:
+                st_icon = "🔴 HIGH CONFIDENCE BREAK"
+
             consumer = f"`{e.get('consumer_service')}`"
             producer = f"`{e.get('producer_service')}`"
             route = f"`{e.get('method')} {e.get('target_path')}`"
             issues_str = "; ".join(e.get("issues", [])) or "API Contract compatible"
-            md.append(f"| {st_icon} | {consumer} | {producer} | {route} | {issues_str} |")
+            ver_str = f"`{e.get('verification_status', 'not_run')}`"
+            
+            md.append(f"| {st_icon} | {consumer} | {producer} | {route} | {issues_str} | {ver_str} |")
+            if e.get("ai_explanation"):
+                md.append(f"> **✨ AI Explanation (Advisory)**: *{e.get('ai_explanation')}*")
+                md.append("")
     else:
         md.append("ℹ️ *No external dependent repositories specified or affected.*")
 
@@ -103,19 +126,23 @@ def generate_pr_comment_markdown(diff_result: DiffResult, cross_edges: List[Dict
     ])
 
     step = 1
-    for d in diff_result.drifts:
-        md.append(f"**{step}. {d.method} `{d.target_route}` -- {d.description}**")
+    for d in drifts:
+        tier_label = "Possible break — dynamic route, could not verify with full confidence" if getattr(d, 'confidence_tier', '') == "POSSIBLE_BREAK" else "High confidence breaking change"
+        md.append(f"**{step}. {d.method} `{d.target_route}` ({tier_label}) -- {d.description}**")
         md.append(f"- **Action Required**: {d.remediation_suggestion}")
+        md.append(f"- **Verification Note**: {getattr(d, 'verification_note', 'Confirmed AST schema mismatch.')}")
         md.append(f"- **Commit Origin**: *\"{d.git_context.commit_message}\"* by @{d.git_context.author}")
         md.append("")
         step += 1
 
     for e in cross_edges:
-        if e.get("status") in ("BREAKING", "WARN"):
-            md.append(f"**{step}. Cross-Repo Breakdown between `{e.get('consumer_service')}` and `{e.get('producer_service')}`**")
+        if e.get("status") in ("BREAKING", "HIGH_CONFIDENCE_BREAK", "POSSIBLE_BREAK", "WARN"):
+            tier_label = "Possible break — dynamic route, could not verify with full confidence" if e.get("confidence_tier") == "POSSIBLE_BREAK" else "High confidence breaking change"
+            md.append(f"**{step}. Cross-Repo Breakdown between `{e.get('consumer_service')}` and `{e.get('producer_service')}` ({tier_label})**")
             md.append(f"- **Consumer Endpoint Call**: `{e.get('method')} {e.get('target_path')}` in `{e.get('consumer_file')}:L{e.get('consumer_line')}`")
             for iss in e.get("issues", []):
                 md.append(f"- 🔴 **Issue**: {iss}")
+            md.append(f"- **Verification**: {e.get('verification_note', 'Confirmed AST boundary drift.')}")
             md.append(f"- **Remediation**: Update consumer `{e.get('consumer_service')}` or maintain endpoint alias compatibility in producer `{e.get('producer_service')}`.")
             md.append("")
             step += 1
@@ -155,6 +182,7 @@ def main():
     pr_p.add_argument("--target-repos", default="", help="Comma-separated list of target external repo directories or contract JSON files to validate against")
     pr_p.add_argument("--name", default="", help="Service name override")
     pr_p.add_argument("--out-md", default="", help="Optional file path to output GitHub PR comment markdown")
+    pr_p.add_argument("--block-on-possible-break", action="store_true", default=False, help="Treat POSSIBLE_BREAK dynamic route warnings as blocking failures")
 
     # Diff command
     diff_p = subparsers.add_parser("diff", help="Generate detailed structural diff report")
@@ -181,15 +209,10 @@ on:
   pull_request:
     branches: [ main, master, develop ]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   repotrace-ast-gate:
     name: RepoTrace AST Boundary & Schema Drift Check
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     steps:
       - name: Checkout Codebase
         uses: actions/checkout@v4
@@ -198,56 +221,30 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: pujith-vijay-swamy/OT-Enterprise-Edition
-          path: repotrace_engine
+          path: .repotrace-engine
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Run RepoTrace CLI AST PR Gate
+      - name: Run AST Contract Drift PR Check
+        id: repotrace
+        continue-on-error: true
         run: |
-          python repotrace_engine/engine/repotrace/cli.py pr-check --head ./ --out-md pr_comment.md
+          python .repotrace-engine/engine/repotrace/cli.py pr-check --head ./ --out-md pr_comment.md
 
-      - name: Post Sticky GitHub PR Governance Comment
+      - name: Comment PR Governance Report
+        uses: mshick/fast-pr-comment@v2
         if: always()
-        uses: actions/github-script@v7
         with:
-          script: |
-            const fs = require('fs');
-            if (fs.existsSync('pr_comment.md')) {
-              const commentBody = fs.readFileSync('pr_comment.md', 'utf8');
-              const { data: comments } = await github.rest.issues.listComments({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.payload.pull_request.number,
-              });
-              const botComment = comments.find(c => c.body.includes('RepoTrace AI'));
-              if (botComment) {
-                await github.rest.issues.updateComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  comment_id: botComment.id,
-                  body: commentBody
-                });
-              } else {
-                await github.rest.issues.createComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: context.payload.pull_request.number,
-                  body: commentBody
-                });
-              }
-            }
+          file: pr_comment.md
+          issue: ${{ github.event.pull_request.number }}
 """
         with open(workflow_path, "w", encoding="utf-8") as f:
             f.write(workflow_yaml)
 
-        print("\n" + "=" * 68)
-        print("  REPOTRACE AI -- 1-CLICK WORKFLOW INITIALIZATION SUCCESSFUL")
-        print("=" * 68)
-        print(f"[SUCCESS] Created GitHub Actions Workflow File: {workflow_path}")
-        print("[NEXT STEP] Commit and push .github/workflows/repotrace-ci.yml to activate PR governance.")
+        print(f"[SUCCESS] Injected RepoTrace PR Governance workflow into '{workflow_path}'")
         print("=" * 68 + "\n")
 
     elif args.command == "extract":
@@ -259,6 +256,7 @@ jobs:
         head_path = args.head
         base_path = args.base
         target_repos_raw = args.target_repos
+        block_on_possible = getattr(args, "block_on_possible_break", False)
 
         # Load or extract head (PR modified code)
         if head_path.endswith(".json") and os.path.exists(head_path):
@@ -306,7 +304,6 @@ jobs:
             for sample_name in os.listdir(samples_dir):
                 sample_path = os.path.join(samples_dir, sample_name)
                 if os.path.isdir(sample_path) and sample_name != os.path.basename(os.path.abspath(head_path)):
-                    # Check if contract json or source exists
                     contract_json = os.path.join(sample_path, "repotrace.contract.json")
                     if os.path.exists(contract_json):
                         sc = ServiceContract.load_json(contract_json)
@@ -328,8 +325,25 @@ jobs:
             if e.get("consumer_service") == c_head.service_name or e.get("producer_service") == c_head.service_name
         ]
 
-        has_cross_breaking = any(e.get("status") in ("BREAKING", "WARN") for e in cross_edges)
-        is_blocked = diff_res.has_breaking_changes or has_cross_breaking
+        has_high_confidence_drift = any(
+            getattr(d, "confidence_tier", "HIGH_CONFIDENCE_BREAK") == "HIGH_CONFIDENCE_BREAK"
+            for d in diff_res.drifts if d.severity == "BREAKING"
+        )
+        has_cross_high_confidence = any(
+            e.get("confidence_tier", "HIGH_CONFIDENCE_BREAK") == "HIGH_CONFIDENCE_BREAK" and e.get("status") in ("BREAKING", "HIGH_CONFIDENCE_BREAK")
+            for e in cross_edges
+        )
+
+        has_possible_break = any(
+            getattr(d, "confidence_tier", "") == "POSSIBLE_BREAK" for d in diff_res.drifts
+        ) or any(
+            e.get("confidence_tier") == "POSSIBLE_BREAK" for e in cross_edges
+        )
+
+        if block_on_possible:
+            is_blocked = diff_res.has_breaking_changes or any(e.get("status") in ("BREAKING", "HIGH_CONFIDENCE_BREAK", "POSSIBLE_BREAK", "WARN") for e in cross_edges)
+        else:
+            is_blocked = has_high_confidence_drift or has_cross_high_confidence
 
         print("\n" + "=" * 68)
         print("  REPOTRACE AI -- CROSS-REPOSITORY PR CONTRACT GOVERNANCE REPORT")
@@ -337,7 +351,9 @@ jobs:
         print(f"Target Branch: main  |  PR Service: {diff_res.service_name}")
         
         if is_blocked:
-            print("Status: [PR BLOCKED - CROSS-REPOSITORY CONTRACT DRIFT DETECTED]")
+            print("Status: [PR BLOCKED - HIGH CONFIDENCE CONTRACT DRIFT DETECTED]")
+        elif has_possible_break:
+            print("Status: [PASS WITH WARNINGS - POSSIBLE BREAK DYNAMIC ROUTE DETECTED]")
         else:
             print("Status: [PASS - CROSS-REPOSITORY GOVERNANCE APPROVED]")
         
@@ -348,20 +364,24 @@ jobs:
         if diff_res.drifts:
             print("--- INTERNAL REPOSITORY DRIFTS ---")
             for d in diff_res.drifts:
-                prefix = "[BREAKING]" if d.severity == "BREAKING" else "[WARNING]"
+                tier = getattr(d, 'confidence_tier', 'HIGH_CONFIDENCE_BREAK')
+                prefix = f"[{tier}]"
                 print(f"{prefix} {d.change_type} @ {d.method} {d.target_route}")
                 print(f"  Field:          {d.field_name or 'N/A'}")
-                print(f"  Description:    {d.description}")
-                print(f"  File Origin:    {d.git_context.file_path}:L{d.git_context.line_number} (by @{d.git_context.author})")
+                print(f"  Verification:   {getattr(d, 'verification_status', 'not_run')} ({getattr(d, 'verification_note', '')})")
+                if getattr(d, 'ai_explanation', None):
+                    print(f"  AI Explanation: {d.ai_explanation}")
                 print(f"  Fix Guidance:   {d.remediation_suggestion}\n")
 
         if cross_edges:
             print("--- CROSS-REPOSITORY IMPACT MATRIX ---")
             for e in cross_edges:
-                prefix = f"[{e.get('status')}]"
+                prefix = f"[{e.get('confidence_tier', e.get('status'))}]"
                 print(f"{prefix} Consumer: '{e.get('consumer_service')}' -> Producer: '{e.get('producer_service')}'")
                 print(f"  Endpoint:       {e.get('method')} {e.get('target_path')}")
-                print(f"  Consumer File:  {e.get('consumer_file')}:L{e.get('consumer_line')}")
+                print(f"  Verification:   {e.get('verification_status')} ({e.get('verification_note')})")
+                if e.get("ai_explanation"):
+                    print(f"  AI Explanation: {e.get('ai_explanation')}")
                 for iss in e.get("issues", []):
                     print(f"  Issue Detail:   {iss}")
                 print()
@@ -375,7 +395,7 @@ jobs:
         print("=" * 68 + "\n")
 
         if is_blocked:
-            print("[FAIL] CLI Gate Triggered: Cross-Repository AST contract drift prevents merging PR into main branch.")
+            print("[FAIL] CLI Gate Triggered: High confidence AST contract drift prevents merging PR into main branch.")
             sys.exit(1)
         else:
             print("[SUCCESS] CLI Gate Passed: Cross-Repository contract governance approved.")

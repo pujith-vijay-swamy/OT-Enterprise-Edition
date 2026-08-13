@@ -12,7 +12,7 @@ interface RepoInput {
 interface ScanReposModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onScanComplete: (contracts: any[], topology: any) => void;
+  onScanComplete: (contracts: any[], topology: any, reposToScan?: { dir: string; name: string }[]) => void;
   githubSession: GitHubSession;
 }
 
@@ -107,12 +107,12 @@ export const ScanReposModal: React.FC<ScanReposModalProps> = ({
 
   const handleLoadEnterpriseMeshDemo = () => {
     setManualRepos([
-      { dir: 'D:\\OT\\samples\\checkout-frontend', name: 'checkout-frontend' },
-      { dir: 'D:\\OT\\samples\\user-service-v1', name: 'user-service-v1' },
-      { dir: 'D:\\OT\\samples\\user-service-v2', name: 'user-service-v2' },
-      { dir: 'D:\\OT\\samples\\payment-gateway-service', name: 'payment-gateway-service' },
-      { dir: 'D:\\OT\\samples\\order-service', name: 'order-service' },
-      { dir: 'D:\\OT\\samples\\notification-service', name: 'notification-service' }
+      { dir: 'samples/checkout-frontend', name: 'checkout-frontend' },
+      { dir: 'samples/user-service-v1', name: 'user-service-v1' },
+      { dir: 'samples/user-service-v2', name: 'user-service-v2' },
+      { dir: 'samples/payment-gateway-service', name: 'payment-gateway-service' },
+      { dir: 'samples/order-service', name: 'order-service' },
+      { dir: 'samples/notification-service', name: 'notification-service' }
     ]);
     setActiveTab('manual');
   };
@@ -186,7 +186,7 @@ export const ScanReposModal: React.FC<ScanReposModalProps> = ({
         throw new Error('No microservice AST definitions were found at the provided paths.');
       }
 
-      onScanComplete(result.contracts, result.topology);
+      onScanComplete(result.contracts, result.topology, reposToScan);
       onClose();
     } catch (err: any) {
       setErrorMsg(err.message || 'Error extracting repository contracts');
@@ -459,17 +459,17 @@ export const ScanReposModal: React.FC<ScanReposModalProps> = ({
           <div className="flex items-center gap-2.5">
             <button
               onClick={onClose}
-              className="px-3 py-1 bg-[#171717] hover:bg-[#262626] border-2 border-neutral-700 text-xs font-bold text-neutral-300 uppercase cursor-pointer"
+              className="h-[34px] px-3.5 bg-[#171717] hover:bg-[#262626] border-2 border-neutral-700 text-xs font-bold text-neutral-300 hover:text-white uppercase cursor-pointer shadow-[2px_2px_0px_0px_#000]"
             >
               Cancel
             </button>
             <button
               onClick={handleRunScan}
               disabled={isRunDisabled}
-              className="brutal-btn-primary flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+              className="h-[34px] px-4 bg-blue-600 hover:bg-blue-500 border-2 border-white text-xs font-extrabold text-white uppercase flex items-center justify-center gap-1.5 shadow-[2px_2px_0px_0px_#ffffff] cursor-pointer disabled:opacity-40 transition-transform active:translate-x-0.5 active:translate-y-0.5"
             >
               {isScanning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-              {isScanning ? 'FETCHING AST...' : `RUN AST ANALYSIS (${selectedCount})`}
+              <span>{isScanning ? 'FETCHING AST...' : `RUN AST ANALYSIS (${selectedCount})`}</span>
             </button>
           </div>
         </div>

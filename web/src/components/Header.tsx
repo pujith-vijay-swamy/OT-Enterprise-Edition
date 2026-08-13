@@ -136,13 +136,13 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex items-center bg-[#171717] p-1 border-2 border-[#262626] text-xs">
+        <div className="flex items-center bg-[#171717] p-1 border-2 border-neutral-700 text-xs">
           <button
             onClick={() => setActiveTab('topology')}
-            className={`flex items-center gap-2 px-3 py-1.5 font-bold transition-all uppercase cursor-pointer ${
+            className={`flex items-center gap-2 px-3 py-1.5 font-bold transition-all duration-200 ease-out uppercase cursor-pointer ${
               activeTab === 'topology'
-                ? 'bg-blue-600 text-white border border-white shadow-[2px_2px_0px_0px_#ffffff]'
-                : 'text-neutral-400 hover:text-white hover:bg-[#262626]'
+                ? 'bg-blue-600 text-white border border-white shadow-[2px_2px_0px_0px_#ffffff] scale-[1.02]'
+                : 'text-neutral-400 hover:text-white hover:bg-[#262626] active:scale-95'
             }`}
           >
             <Network className="w-3.5 h-3.5" />
@@ -151,10 +151,10 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={() => setActiveTab('monaco')}
-            className={`flex items-center gap-2 px-3 py-1.5 font-bold transition-all uppercase cursor-pointer ${
+            className={`flex items-center gap-2 px-3 py-1.5 font-bold transition-all duration-200 ease-out uppercase cursor-pointer ${
               activeTab === 'monaco'
-                ? 'bg-blue-600 text-white border border-white shadow-[2px_2px_0px_0px_#ffffff]'
-                : 'text-neutral-400 hover:text-white hover:bg-[#262626]'
+                ? 'bg-blue-600 text-white border border-white shadow-[2px_2px_0px_0px_#ffffff] scale-[1.02]'
+                : 'text-neutral-400 hover:text-white hover:bg-[#262626] active:scale-95'
             }`}
           >
             <GitCompare className="w-3.5 h-3.5" />
@@ -163,10 +163,10 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={() => setActiveTab('governance')}
-            className={`flex items-center gap-2 px-3 py-1.5 font-bold transition-all uppercase cursor-pointer ${
+            className={`flex items-center gap-2 px-3 py-1.5 font-bold transition-all duration-200 ease-out uppercase cursor-pointer ${
               activeTab === 'governance'
-                ? 'bg-blue-600 text-white border border-white shadow-[2px_2px_0px_0px_#ffffff]'
-                : 'text-neutral-400 hover:text-white hover:bg-[#262626]'
+                ? 'bg-blue-600 text-white border border-white shadow-[2px_2px_0px_0px_#ffffff] scale-[1.02]'
+                : 'text-neutral-400 hover:text-white hover:bg-[#262626] active:scale-95'
             }`}
           >
             <ShieldAlert className="w-3.5 h-3.5" />
@@ -175,10 +175,10 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={() => setActiveTab('ir')}
-            className={`flex items-center gap-2 px-3 py-1.5 font-bold transition-all uppercase cursor-pointer ${
+            className={`flex items-center gap-2 px-3 py-1.5 font-bold transition-all duration-200 ease-out uppercase cursor-pointer ${
               activeTab === 'ir'
-                ? 'bg-blue-600 text-white border border-white shadow-[2px_2px_0px_0px_#ffffff]'
-                : 'text-neutral-400 hover:text-white hover:bg-[#262626]'
+                ? 'bg-blue-600 text-white border border-white shadow-[2px_2px_0px_0px_#ffffff] scale-[1.02]'
+                : 'text-neutral-400 hover:text-white hover:bg-[#262626] active:scale-95'
             }`}
           >
             <Cpu className="w-3.5 h-3.5" />
@@ -187,15 +187,15 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Right Side Action Controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           
           {/* Blast Radius Toggle */}
           <button
             onClick={() => setBlastRadiusMode(!blastRadiusMode)}
-            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-bold border-2 transition-all uppercase cursor-pointer ${
+            className={`h-[34px] flex items-center gap-2 px-3 text-xs font-bold border-2 transition-all uppercase cursor-pointer ${
               blastRadiusMode
                 ? 'bg-rose-950 text-rose-300 border-rose-600 shadow-[2px_2px_0px_0px_#f43f5e]'
-                : 'bg-[#171717] text-neutral-400 border-[#262626] hover:text-white'
+                : 'bg-[#171717] text-neutral-400 border-neutral-700 hover:text-white shadow-[2px_2px_0px_0px_#000]'
             }`}
           >
             <Activity className="w-3.5 h-3.5" />
@@ -206,19 +206,19 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={onRefresh}
             disabled={isScanning}
-            className="p-1.5 bg-[#171717] hover:bg-[#262626] border-2 border-[#262626] text-neutral-300 hover:text-white transition-colors cursor-pointer"
+            className="h-[34px] w-[34px] flex items-center justify-center bg-[#171717] hover:bg-[#262626] border-2 border-neutral-700 text-neutral-300 hover:text-white shadow-[2px_2px_0px_0px_#000] transition-colors cursor-pointer disabled:opacity-50 shrink-0"
             title="Refresh AST state"
           >
-            <RefreshCw className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
           </button>
 
           {/* Analyze Microservices CTA */}
           <button
             onClick={onOpenScanModal}
-            className="brutal-btn-primary flex items-center gap-2 cursor-pointer"
+            className="h-[34px] px-3.5 bg-blue-600 hover:bg-blue-500 border-2 border-white text-white text-xs font-extrabold uppercase flex items-center justify-center gap-2 shadow-[2px_2px_0px_0px_#ffffff] cursor-pointer transition-transform active:translate-x-0.5 active:translate-y-0.5"
           >
-            <FolderPlus className="w-4 h-4" />
-            Analyze Microservices
+            <FolderPlus className="w-3.5 h-3.5" />
+            <span>Analyze Microservices</span>
           </button>
 
         </div>
@@ -244,7 +244,8 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={() => {
                 const clientId = process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID || 'Ov23liH6AZE8ReibuQmV';
-                const redirectUri = encodeURIComponent('http://localhost:3000/api/auth/callback/github');
+                const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
+                const redirectUri = encodeURIComponent(`${baseUrl}/api/auth/callback/github`);
                 window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=repo,user`;
               }}
               className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 border-2 border-white text-white text-xs font-extrabold uppercase flex items-center justify-center gap-2 shadow-[2px_2px_0px_0px_#ffffff] cursor-pointer"

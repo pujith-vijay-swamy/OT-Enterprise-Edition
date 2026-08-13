@@ -96,6 +96,7 @@ class EndpointRoute:
     handler_name: str = "unknown"
     source_file: str = ""
     line_number: int = 0
+    match_confidence: str = "static"  # "static" | "dynamic"
     path_params: List[RouteParam] = field(default_factory=list)
     request_schema: Optional[ObjectSchema] = None
     response_schema: Optional[ObjectSchema] = None
@@ -112,6 +113,7 @@ class EndpointRoute:
             "handler_name": self.handler_name,
             "source_file": self.source_file,
             "line_number": self.line_number,
+            "match_confidence": self.match_confidence,
             "path_params": [p.to_dict() for p in self.path_params],
             "request_schema": self.request_schema.to_dict() if self.request_schema else None,
             "response_schema": self.response_schema.to_dict() if self.response_schema else None
@@ -130,6 +132,7 @@ class EndpointRoute:
             handler_name=data.get("handler_name", "unknown"),
             source_file=data.get("source_file", ""),
             line_number=data.get("line_number", 0),
+            match_confidence=data.get("match_confidence", "static"),
             path_params=params,
             request_schema=req_s,
             response_schema=res_s
@@ -146,6 +149,7 @@ class ConsumerCall:
     caller_component: str = "unknown"
     source_file: str = ""
     line_number: int = 0
+    match_confidence: str = "static"  # "static" | "dynamic"
     expected_response_fields: List[str] = field(default_factory=list)
     expected_fields: List[str] = field(default_factory=list)
 
@@ -167,6 +171,7 @@ class ConsumerCall:
             "caller_component": self.caller_component,
             "source_file": self.source_file,
             "line_number": self.line_number,
+            "match_confidence": self.match_confidence,
             "expected_response_fields": self.expected_response_fields,
             "expected_fields": self.expected_fields
         }
@@ -183,6 +188,7 @@ class ConsumerCall:
             caller_component=data.get("caller_component") or data.get("caller_function") or "unknown",
             source_file=data.get("source_file", ""),
             line_number=data.get("line_number", 0),
+            match_confidence=data.get("match_confidence", "static"),
             expected_response_fields=exp,
             expected_fields=exp
         )

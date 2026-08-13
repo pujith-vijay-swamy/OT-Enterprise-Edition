@@ -20,6 +20,23 @@
   }
 }
 
+/* Hardware-Accelerated Smooth Tab Slide-In Movement Animation */
+@keyframes tabSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.995);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-tab-transition {
+  animation: tabSlideIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
 /* Custom Brutalist Dark Scrollbars across entire App */
 ::-webkit-scrollbar {
   width: 7px;

@@ -170,12 +170,15 @@ class PythonASTParser(BaseParser):
                     if fields:
                         res_schema = PayloadSchema(fields=fields)
 
+                confidence = "dynamic" if self._is_dynamic_str(decorator.args[0] if decorator.args else None) else "static"
+
                 route = EndpointRoute(
                     path=path,
                     method=method,
                     handler_name=func_name,
                     source_file=rel_path,
                     line_number=node.lineno,
+                    match_confidence=confidence,
                     path_params=path_params,
                     response_schema=res_schema
                 )
@@ -194,15 +197,30 @@ class PythonASTParser(BaseParser):
             if obj_name in ("requests", "httpx", "client", "session", "http") and attr_name in ("get", "post", "put", "delete", "patch"):
                 if node.args:
                     url = self._eval_str_literal(node.args[0])
+                    confidence = "dynamic" if self._is_dynamic_str(node.args[0]) else "static"
                     if url:
                         return ConsumerCall(
                             target_path=url,
                             method=attr_name.upper(),
                             source_file=rel_path,
                             line_number=node.lineno,
+                            match_confidence=confidence,
                             caller_component=obj_name
                         )
         return None
+
+    def _is_dynamic_str(self, node: Optional[ast.AST]) -> bool:
+        if node is None:
+            return False
+        if isinstance(node, (ast.Constant, ast.Str)):
+            return False
+        if isinstance(node, ast.JoinedStr): # f-string e.g. f"/api/users/{id}"
+            return True
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add): # "url" + id
+            return True
+        if isinstance(node, ast.Name): # variable holding path
+            return True
+        return True
 
     def _eval_str_literal(self, node: ast.AST) -> str:
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
