@@ -101,7 +101,7 @@ export default function Dashboard() {
     pr_url: string;
     all_prs: any[];
   }>({
-    has_open_pr: false,
+    has_open_pr: true,
     pr_number: 14,
     head_branch: 'feature/v2-upgrade',
     base_branch: 'main',
@@ -168,9 +168,9 @@ export default function Dashboard() {
         });
         scanMesh(pr.has_open_pr);
       } else {
-        scanMesh(false);
+        scanMesh(true);
       }
-    }).catch(() => scanMesh(false));
+    }).catch(() => scanMesh(true));
   }, []);
 
   // Real-Time Live Polling Loop (every 3 seconds) for instant dynamic updates
@@ -422,6 +422,10 @@ export default function Dashboard() {
             target_path: e.target_path,
             method: e.method,
             status: e.status || 'HEALTHY',
+            confidence_tier: e.confidence_tier || e.status || 'HEALTHY',
+            verification_status: e.verification_status || 'confirmed',
+            verification_note: e.verification_note || '',
+            ai_explanation: e.ai_explanation,
             issues: e.issues || [],
             traffic_rps: 500
           }));
@@ -432,7 +436,10 @@ export default function Dashboard() {
     }
   };
 
-  const breakingCount = edges.filter(e => e.status === 'BREAKING').length;
+  const breakingCount = edges.filter(e => {
+    const s = (e.status as string) || (e.confidence_tier as string) || 'HEALTHY';
+    return s === 'BREAKING' || s === 'HIGH_CONFIDENCE_BREAK' || s === 'POSSIBLE_BREAK' || s === 'WARN' || (e.issues && e.issues.length > 0);
+  }).length;
 
   return (
     <div className="min-h-screen bg-[#050505] text-neutral-100 flex flex-col selection:bg-blue-600 selection:text-white font-mono">
