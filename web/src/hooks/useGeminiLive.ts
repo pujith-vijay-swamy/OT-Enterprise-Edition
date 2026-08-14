@@ -434,13 +434,16 @@ export function useGeminiLive(
                   (e.issues && e.issues.length > 0)
               );
 
-              const rPrompt = `You are RepoTrace Live Voice Assistant. Answer concisely and completely in 2-3 sentences.
+              const isEnforcerMode = personaMode === 'ENFORCER';
+              const rPrompt = `You are RepoTrace Live Voice Assistant.
+PERSONA: ${isEnforcerMode ? 'STRICT PR ENFORCER & MERGE GATEKEEPER (Assertive tone, block unsafe merges, flag breaking endpoints/fields)' : 'ARCHITECTURAL ADVISOR (Constructive tone, provide migration paths, backward compatibility alias guidance)'}
 RAG AST CONTEXT:
 PR #${prNumber} on branch ${headBranch}.
 Active breaking drifts: ${breakingEdges.length} detected.
 Team policy: Maintain alias getters for 1 release cycle.
 
-Question: ${userText}`;
+Question: ${userText}
+Answer concisely in 2-3 full sentences.`;
 
               const dRes = await fetch(directUrl, {
                 method: 'POST',
