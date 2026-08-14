@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Network, GitCompare, ShieldAlert, Cpu, RefreshCw, FolderPlus, Server, Activity, LogOut, UserCheck, Key, Check, AlertCircle } from 'lucide-react';
 import { GitHubSession, loginGitHubToken } from '../lib/api';
+import JarvisLogo from './JarvisLogo';
 
 interface HeaderProps {
   activeTab: string;
@@ -16,6 +17,11 @@ interface HeaderProps {
   onLoginGitHub: () => void;
   onLogoutGitHub: () => void;
   onSessionUpdated?: (session: GitHubSession) => void;
+  ragContext?: {
+    edges?: any[];
+    services?: any[];
+    activePr?: any;
+  };
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -31,7 +37,8 @@ export const Header: React.FC<HeaderProps> = ({
   githubSession,
   onLoginGitHub,
   onLogoutGitHub,
-  onSessionUpdated
+  onSessionUpdated,
+  ragContext,
 }) => {
   const isAuth = Boolean(githubSession && githubSession.authenticated && githubSession.user);
   const user = githubSession?.user;
@@ -71,26 +78,8 @@ export const Header: React.FC<HeaderProps> = ({
         
         {/* Logo and Status Badge */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-blue-600 border border-white flex items-center justify-center text-white font-bold shadow-[2px_2px_0px_0px_#ffffff]">
-              <Network className="w-4.5 h-4.5 text-white" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base font-extrabold text-white tracking-wider uppercase">
-                  REPOTRACE
-                </h1>
-                <span className="text-[9.5px] font-bold px-2 py-0.5 bg-[#171717] text-cyan-400 border border-[#404040]">
-                  ENTERPRISE v2.4
-                </span>
-                <span className="text-[9px] font-extrabold px-2 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-700 flex items-center gap-1.5 shadow-[1px_1px_0px_0px_#10b981]">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                  LIVE AST SYNC (3s)
-                </span>
-              </div>
-              <p className="text-[10.5px] text-neutral-400">STATIC AST BOUNDARY OBSERVABILITY</p>
-            </div>
-          </div>
+          {/* OmniTrace Interactive Brand Avatar Logo */}
+          <JarvisLogo breakingCount={breakingCount} engineOnline={engineOnline} onRefreshMesh={onRefresh} ragContext={ragContext} />
 
           {/* User GitHub Session Badge */}
           {isAuth ? (

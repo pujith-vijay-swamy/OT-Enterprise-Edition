@@ -101,11 +101,11 @@ export default function Dashboard() {
     pr_url: string;
     all_prs: any[];
   }>({
-    has_open_pr: true,
-    pr_number: 14,
+    has_open_pr: false,
+    pr_number: 15,
     head_branch: 'feature/v2-upgrade',
     base_branch: 'main',
-    pr_url: 'https://github.com/pujith-vijay-swamy/UserService/pull/14',
+    pr_url: 'https://github.com/pujith-vijay-swamy/UserService/pull/15',
     all_prs: []
   });
 
@@ -139,7 +139,7 @@ export default function Dashboard() {
 
     const currentOpenPrState = (isOpenPr !== undefined) ? isOpenPr : activePrRef.current.has_open_pr;
 
-    // ALWAYS include ghost PR service (user-service-v2) when active open PR exists and user has NOT deleted user-service-v2!
+    // ONLY include ghost PR service (user-service-v2) when active open PR exists on GitHub and user has NOT deleted user-service-v2!
     if (currentOpenPrState && !isDeletedService('user-service-v2') && !reposToScan.some(r => r.name === 'user-service-v2' || r.dir.includes('user-service-v2'))) {
       reposToScan.push({ dir: 'samples/user-service-v2', name: 'user-service-v2' });
     }
@@ -168,9 +168,9 @@ export default function Dashboard() {
         });
         scanMesh(pr.has_open_pr);
       } else {
-        scanMesh(true);
+        scanMesh(false);
       }
-    }).catch(() => scanMesh(true));
+    }).catch(() => scanMesh(false));
   }, []);
 
   // Real-Time Live Polling Loop (every 3 seconds) for instant dynamic updates
@@ -459,6 +459,7 @@ export default function Dashboard() {
         onLoginGitHub={handleLoginGitHub}
         onLogoutGitHub={handleLogoutGitHub}
         onSessionUpdated={setGithubSession}
+        ragContext={{ edges, services, activePr }}
       />
 
       {/* Toolbar when services are loaded */}
