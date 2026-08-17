@@ -22,6 +22,9 @@ interface HeaderProps {
     services?: any[];
     activePr?: any;
   };
+  onHighlightEdges?: (edgeIds: string[]) => void;
+  onClearHighlights?: () => void;
+  isEdgeNarrationActive?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -39,6 +42,9 @@ export const Header: React.FC<HeaderProps> = ({
   onLogoutGitHub,
   onSessionUpdated,
   ragContext,
+  onHighlightEdges,
+  onClearHighlights,
+  isEdgeNarrationActive,
 }) => {
   const isAuth = Boolean(githubSession && githubSession.authenticated && githubSession.user);
   const user = githubSession?.user;
@@ -79,7 +85,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Logo and Status Badge */}
         <div className="flex items-center gap-3">
           {/* OmniTrace Interactive Brand Avatar Logo */}
-          <JarvisLogo breakingCount={breakingCount} engineOnline={engineOnline} onRefreshMesh={onRefresh} ragContext={ragContext} />
+          <JarvisLogo breakingCount={breakingCount} engineOnline={engineOnline} onRefreshMesh={onRefresh} ragContext={ragContext} onHighlightEdges={onHighlightEdges} onClearHighlights={onClearHighlights} isEdgeNarrationActive={isEdgeNarrationActive} />
 
           {/* User GitHub Session Badge */}
           {isAuth ? (

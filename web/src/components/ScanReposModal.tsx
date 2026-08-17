@@ -68,16 +68,13 @@ export const ScanReposModal: React.FC<ScanReposModalProps> = ({
     setCustomRepoInput('');
   };
 
-  // Fetch repositories from GitHub API on modal open
+  // Fetch repositories from GitHub API on modal open (do not auto-select to avoid lag)
   useEffect(() => {
     if (isOpen) {
       setLoadingRepos(true);
       fetchUserGitHubRepos()
         .then(repos => {
           setGithubRepos(repos);
-          if (repos.length >= 2) {
-            setSelectedRepoIds(new Set(repos.slice(0, 4).map(r => r.id)));
-          }
         })
         .finally(() => setLoadingRepos(false));
     }

@@ -45,8 +45,8 @@ export const MonacoDiffViewer: React.FC<MonacoDiffViewerProps> = ({
   const [activeDriftId, setActiveDriftId] = useState<string>(initialDrift?.id || 'drift-1');
 
   // Dynamic PR state
-  const [prNumber, setPrNumber] = useState<number>(propsPr?.pr_number || 14);
-  const [headBranch, setHeadBranch] = useState<string>(propsPr?.head_branch || 'feature/v2-upgrade');
+  const [prNumber, setPrNumber] = useState<number>(propsPr?.pr_number || 0);
+  const [headBranch, setHeadBranch] = useState<string>(propsPr?.head_branch || 'main');
   const [baseBranch, setBaseBranch] = useState<string>(propsPr?.base_branch || 'main');
 
   useEffect(() => {
@@ -64,24 +64,18 @@ export const MonacoDiffViewer: React.FC<MonacoDiffViewerProps> = ({
   const prList =
     propsPr?.all_prs && propsPr.all_prs.length > 0
       ? propsPr.all_prs
-      : [
+      : propsPr?.has_open_pr
+      ? [
           {
-            number: 14,
-            title: 'v2 upgrade',
-            state: propsPr?.has_open_pr ? 'open' : 'closed',
-            is_open: propsPr?.has_open_pr ?? false,
-            head_branch: 'feature/v2-upgrade',
-            base_branch: 'main',
+            number: propsPr.pr_number || 0,
+            title: `${propsPr.head_branch} upgrade`,
+            state: 'open',
+            is_open: true,
+            head_branch: propsPr.head_branch || 'main',
+            base_branch: propsPr.base_branch || 'main',
           },
-          {
-            number: 13,
-            title: 'v2 upgrade',
-            state: 'closed',
-            is_open: false,
-            head_branch: 'feature/v2-upgrade',
-            base_branch: 'main',
-          },
-        ];
+        ]
+      : [];
 
   const selectedPR = prList.find((p) => p.number === prNumber) || prList[0];
   

@@ -176,6 +176,49 @@ Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 
 ---
 
+## 🚀 Cloud Deployment Guide
+
+RepoTrace AI is architected for decoupled cloud deployment: **Render** for the Python AST Engine Backend and **Vercel** for the Next.js Frontend.
+
+```text
+┌────────────────────────┐                   ┌────────────────────────┐
+│     VERCEL CLOUD       │                   │      RENDER CLOUD      │
+│  Next.js 16 Web App    │─── REST / RAG ───►│  Python 3.11 AST Engine│
+│  (UI & Live Voice)     │                   │  (Port 4400 / $PORT)   │
+└────────────────────────┘                   └────────────────────────┘
+```
+
+### 1. Deploy Python AST Engine to Render
+1. Go to **[Render Dashboard](https://dashboard.render.com/)** and click **New + > Web Service**.
+2. Connect your GitHub repository: `pujith-vijay-swamy/OT-Enterprise-Edition`.
+3. Configure the service:
+   * **Runtime**: `Python 3`
+   * **Build Command**: `pip install -r requirements.txt`
+   * **Start Command**: `python engine/repotrace/server.py`
+4. Add Environment Variables:
+   * `GEMINI_API_KEY`: Your Google Gemini API Key
+   * `PYTHON_VERSION`: `3.11.0`
+5. Click **Create Web Service**. Copy your Render public URL (e.g. `https://repotrace-engine.onrender.com`).
+
+*(Or deploy automatically using the included `render.yaml` Blueprint).*
+
+---
+
+### 2. Deploy Web Console to Vercel
+1. Go to **[Vercel Dashboard](https://vercel.com/new)** and import `pujith-vijay-swamy/OT-Enterprise-Edition`.
+2. In Project Settings:
+   * **Framework Preset**: `Next.js`
+   * **Root Directory**: `web` *(or leave as root; `vercel.json` will route automatically)*
+3. Add Environment Variables:
+   * `NEXT_PUBLIC_API_BASE`: `https://your-render-app.onrender.com/api` (point to your Render backend)
+   * `NEXT_PUBLIC_APP_URL`: `https://your-vercel-domain.vercel.app`
+   * `GEMINI_API_KEY`: Your Google Gemini API Key
+   * `NEXT_PUBLIC_GEMINI_API_KEY`: Your Google Gemini API Key
+   * `NEXT_PUBLIC_GITHUB_CLIENT_ID`: Your GitHub OAuth Client ID (Optional)
+4. Click **Deploy**. Your enterprise platform is now live!
+
+---
+
 ## 🛡️ Automated PR Governance Gate
 
 To run the static AST contract gate locally or in your CI/CD pipeline:

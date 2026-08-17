@@ -1,23 +1,23 @@
 #!/bin/bash
 echo "======================================================================="
-echo "         OmniTrace AI -- Enterprise Microservice Platform Launcher"
+echo "         RepoTrace AI -- Enterprise Microservice Platform Launcher"
 echo "======================================================================="
 echo ""
 
-echo "Starting OmniTrace Python AST Backend Server on http://localhost:4400 ..."
-python3 engine/omnitrace/server.py &
+echo "Starting RepoTrace Python AST Backend Server on http://localhost:4400 ..."
+python3 engine/repotrace/server.py &
 SERVER_PID=$!
 
 sleep 2
 
-echo "Starting Next.js Enterprise Web Console on http://localhost:3001 ..."
+echo "Starting Next.js Enterprise Web Console on http://localhost:3000 ..."
 cd web && npm run dev &
 WEB_PID=$!
 
 echo ""
 echo "======================================================================="
-echo " OmniTrace AI Platform Services Active:"
-echo "  - Web Console: http://localhost:3001"
+echo " RepoTrace AI Platform Services Active:"
+echo "  - Web Console: http://localhost:3000"
 echo "  - AST Engine Backend: http://localhost:4400"
 echo "======================================================================="
 

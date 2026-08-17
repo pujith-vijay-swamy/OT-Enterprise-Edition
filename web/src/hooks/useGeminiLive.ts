@@ -45,6 +45,7 @@ export function useGeminiLive(
   const isQueryProcessingRef = useRef<boolean>(false);
   const isSpeakingRef = useRef<boolean>(false);
   const wordSyncTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const speechGenerationRef = useRef<number>(0);
 
   // Parallel-Synchronized Speech Synthesis with Boundary Cadence Alignment
   const speakTextNative = useCallback((text: string) => {
@@ -54,6 +55,8 @@ export function useGeminiLive(
       setActiveSubtitle(text);
       return;
     }
+
+    const currentGen = ++speechGenerationRef.current;
 
     window.speechSynthesis.cancel();
     if (wordSyncTimerRef.current) clearTimeout(wordSyncTimerRef.current);
@@ -107,6 +110,10 @@ export function useGeminiLive(
     const playSentence = () => {
       if (wordSyncTimerRef.current) clearTimeout(wordSyncTimerRef.current);
 
+      if (currentGen !== speechGenerationRef.current || !isSpeakingRef.current) {
+        return;
+      }
+
       if (currentIndex >= sentences.length) {
         setIsSpeaking(false);
         isSpeakingRef.current = false;
@@ -134,6 +141,7 @@ export function useGeminiLive(
 
       // 1. Native Speech Engine Boundary Event (Exact parallel timing)
       utterance.onboundary = (event: any) => {
+        if (currentGen !== speechGenerationRef.current || !isSpeakingRef.current) return;
         if (event.name === 'word' || typeof event.charIndex === 'number') {
           const charIndex = event.charIndex;
           const charLength = event.charLength || 0;
@@ -149,7 +157,7 @@ export function useGeminiLive(
 
       // 2. Parallel Cadence Word Timer (Fallback for platforms without onboundary)
       const scheduleNextWord = () => {
-        if (!isSpeakingRef.current || currentWordIdx >= sentenceWords.length) return;
+        if (currentGen !== speechGenerationRef.current || !isSpeakingRef.current || currentWordIdx >= sentenceWords.length) return;
         const currentWord = sentenceWords[currentWordIdx];
         const spokenSentencePart = sentenceWords.slice(0, currentWordIdx + 1).join(' ');
         const fullDisplay = previousSentences
@@ -166,11 +174,15 @@ export function useGeminiLive(
       };
 
       utterance.onstart = () => {
+        if (currentGen !== speechGenerationRef.current || !isSpeakingRef.current) return;
         scheduleNextWord();
       };
 
       utterance.onend = () => {
         if (wordSyncTimerRef.current) clearTimeout(wordSyncTimerRef.current);
+        if (currentGen !== speechGenerationRef.current || !isSpeakingRef.current) {
+          return;
+        }
         const sentenceDone = previousSentences
           ? previousSentences + ' ' + sentence
           : sentence;
@@ -179,9 +191,17 @@ export function useGeminiLive(
         playSentence();
       };
 
-      utterance.onerror = (err) => {
-        console.warn('Speech playback notice:', err);
+      utterance.onerror = (err: any) => {
         if (wordSyncTimerRef.current) clearTimeout(wordSyncTimerRef.current);
+        // Stop immediately on cancel / unmount / interruption
+        if (
+          currentGen !== speechGenerationRef.current ||
+          !isSpeakingRef.current ||
+          err?.error === 'canceled' ||
+          err?.error === 'interrupted'
+        ) {
+          return;
+        }
         currentIndex++;
         playSentence();
       };
@@ -421,8 +441,10 @@ export function useGeminiLive(
           for (const model of targetModels) {
             try {
               const directUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${envKey}`;
-              const prNumber = ragData?.activePr?.pr_number || 14;
-              const headBranch = ragData?.activePr?.head_branch || 'feature/v2-upgrade';
+              const hasOpenPr = Boolean(ragData?.activePr?.has_open_pr);
+              const prNumber = ragData?.activePr?.pr_number || 0;
+              const headBranch = ragData?.activePr?.head_branch || 'main';
+              const baseBranch = ragData?.activePr?.base_branch || 'main';
               const breakingEdges = (ragData?.edges || []).filter(
                 (e: any) =>
                   e.status === 'BREAKING' ||
@@ -435,15 +457,22 @@ export function useGeminiLive(
               );
 
               const isEnforcerMode = personaMode === 'ENFORCER';
+              const contextSnippet = hasOpenPr
+                ? `Active Pull Request: PR #${prNumber} on branch ${headBranch} (target: ${baseBranch}).
+Active breaking drifts: ${breakingEdges.length} detected.
+Team policy: Maintain alias getters for 1 release cycle.`
+                : `Production Mesh: Branch ${baseBranch}.
+Open Pull Requests: None.
+Connected Microservices: ${(ragData?.services || []).map((s: any) => s.name || s.id).join(', ') || 'user-service, checkout-frontend, payment-gateway-service, notification-service, order-service'}.
+Mesh Status: All static AST contracts healthy and in sync (0 breaking drifts).`;
+
               const rPrompt = `You are RepoTrace Live Voice Assistant.
 PERSONA: ${isEnforcerMode ? 'STRICT PR ENFORCER & MERGE GATEKEEPER (Assertive tone, block unsafe merges, flag breaking endpoints/fields)' : 'ARCHITECTURAL ADVISOR (Constructive tone, provide migration paths, backward compatibility alias guidance)'}
 RAG AST CONTEXT:
-PR #${prNumber} on branch ${headBranch}.
-Active breaking drifts: ${breakingEdges.length} detected.
-Team policy: Maintain alias getters for 1 release cycle.
+${contextSnippet}
 
 Question: ${userText}
-Answer concisely in 2-3 full sentences.`;
+Answer concisely in 2-3 full sentences. Do NOT mention closed pull requests unless asked directly about them.`;
 
               const dRes = await fetch(directUrl, {
                 method: 'POST',
@@ -464,8 +493,9 @@ Answer concisely in 2-3 full sentences.`;
 
         // 3. Dynamic RAG AST answer fallback constructed purely from live ragContext state
         if (!answerText) {
-          const prNumber = ragData?.activePr?.pr_number || 14;
-          const headBranch = ragData?.activePr?.head_branch || 'feature/v2-upgrade';
+          const hasOpenPr = Boolean(ragData?.activePr?.has_open_pr);
+          const prNumber = ragData?.activePr?.pr_number || 0;
+          const headBranch = ragData?.activePr?.head_branch || 'main';
           const breakingEdges = (ragData?.edges || []).filter(
             (e: any) =>
               e.status === 'BREAKING' ||
@@ -477,21 +507,26 @@ Answer concisely in 2-3 full sentences.`;
               (e.issues && e.issues.length > 0)
           );
           const lowerQ = userText.toLowerCase();
+          const servicesList = (ragData?.services || []).map((s: any) => s.name || s.id).join(', ') || 'user-service, checkout-frontend, payment-gateway-service, notification-service, order-service';
 
           if (lowerQ.includes('breaking') || lowerQ.includes('drift') || lowerQ.includes('list') || lowerQ.includes('what are')) {
-            if (breakingEdges.length > 0) {
+            if (hasOpenPr && breakingEdges.length > 0) {
               const summary = breakingEdges
                 .slice(0, 2)
                 .map((e: any) => `${e.method || 'GET'} ${e.target_path || '/api/v1/user'} (${e.source} to ${e.target})`)
                 .join(' and ');
               answerText = `In PR #${prNumber} on branch ${headBranch}, we detected ${breakingEdges.length} active breaking contract drifts affecting ${summary}.`;
+            } else if (hasOpenPr) {
+              answerText = `In PR #${prNumber} on branch ${headBranch}, all connected microservices have 0 breaking AST contract drifts.`;
             } else {
-              answerText = `In PR #${prNumber} on branch ${headBranch}, all ${ (ragData?.services || []).length || 4 } connected microservices have 0 breaking AST contract drifts.`;
+              answerText = `All microservices in the production mesh are healthy with 0 breaking AST contract drifts.`;
             }
+          } else if (lowerQ.includes('service') || lowerQ.includes('microservice') || lowerQ.includes('topology') || lowerQ.includes('architecture')) {
+            answerText = `The connected microservice mesh includes ${servicesList}. All static AST boundaries are healthy and in sync.`;
           } else if (lowerQ.includes('policy') || lowerQ.includes('rule') || lowerQ.includes('migrate')) {
-            answerText = `Our enterprise migration policy mandates maintaining backward-compatible alias getters for at least 1 release cycle before retiring old endpoints on ${headBranch}.`;
+            answerText = `Our enterprise migration policy mandates maintaining backward-compatible alias getters for at least 1 release cycle before retiring old endpoints.`;
           } else {
-            answerText = `RepoTrace AST Engine analyzed your question on PR #${prNumber}. Monitored active contract boundaries across microservices with zero unhandled schema leaks.`;
+            answerText = `RepoTrace AST Engine analyzed your query across the microservice mesh. All static contract boundaries are healthy and synchronized.`;
           }
         }
 
@@ -517,6 +552,7 @@ Answer concisely in 2-3 full sentences.`;
   );
 
   const disconnect = useCallback(() => {
+    speechGenerationRef.current++;
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     if (wordSyncTimerRef.current) clearTimeout(wordSyncTimerRef.current);
     if (wsRef.current) {

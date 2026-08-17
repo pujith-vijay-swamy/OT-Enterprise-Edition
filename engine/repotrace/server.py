@@ -475,6 +475,16 @@ def resolve_repo_path(raw_path: str, custom_name: str = "") -> Tuple[str, str, s
                 service_name = custom_name.strip() or name
                 return sample_target, service_name, sample_target
 
+    if os.path.exists(samples_dir):
+        for s_item in os.listdir(samples_dir):
+            s_full = os.path.join(samples_dir, s_item)
+            if os.path.isdir(s_full):
+                s_norm = s_item.lower().replace('_', '-').replace('.git', '')
+                for name in possible_names:
+                    if name and name.lower().replace('_', '-').replace('.git', '') in [s_norm, s_norm.replace('-v1', '').replace('-v2', '')]:
+                        service_name = custom_name.strip() or s_item
+                        return s_full, service_name, s_full
+
     # 3. Handle GitHub URLs or owner/repo shorthand
     is_github_url = cleaned.startswith(("http://", "https://", "git@", "github.com"))
     is_github_shorthand = bool(re.match(r'^[a-zA-Z0-9_\-]+/[a-zA-Z0-9_\-]+$', cleaned))
@@ -1132,10 +1142,12 @@ jobs:
             traceback.print_exc()
             self.send_json_response(500, {"error": str(e)})
 
-def run(port=4400):
-    server_address = ('', port)
+def run(port=None):
+    if port is None:
+        port = int(os.environ.get("PORT", 4400))
+    server_address = ('0.0.0.0', port)
     httpd = ThreadedHTTPServer(server_address, RequestHandler)
-    print(f"RepoTrace API Engine server running on http://localhost:{port}")
+    print(f"RepoTrace API Engine server running on http://0.0.0.0:{port}")
     httpd.serve_forever()
 
 if __name__ == '__main__':

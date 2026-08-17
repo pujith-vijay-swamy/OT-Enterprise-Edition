@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Cpu, AlertOctagon } from 'lucide-react';
 import BrandVoiceAvatar from './BrandVoiceAvatar';
 
@@ -13,6 +13,9 @@ interface JarvisLogoProps {
     services?: any[];
     activePr?: any;
   };
+  onHighlightEdges?: (edgeIds: string[]) => void;
+  onClearHighlights?: () => void;
+  isEdgeNarrationActive?: boolean;
 }
 
 export const JarvisLogo: React.FC<JarvisLogoProps> = ({
@@ -20,10 +23,24 @@ export const JarvisLogo: React.FC<JarvisLogoProps> = ({
   engineOnline = true,
   onRefreshMesh,
   ragContext,
+  onHighlightEdges,
+  onClearHighlights,
+  isEdgeNarrationActive,
 }) => {
-  // Voice Persona Mode: 'GUARDIAN' (Protective Cyan/Emerald) or 'ENFORCER' (Strict Crimson/Red)
+  // Voice Persona Mode: 'GUARDIAN' (Default normal mode) or 'ENFORCER' (Triggered on breaking changes)
   const [personaMode, setPersonaMode] = useState<'GUARDIAN' | 'ENFORCER'>('GUARDIAN');
   const [isVoiceOverlayOpen, setIsVoiceOverlayOpen] = useState(false);
+
+  // Auto-adapt persona mode based on real-time mesh contract health:
+  // Normal state (0 breaking drifts) -> GUARDIAN
+  // Any breaking drifts detected (> 0) -> ENFORCER
+  useEffect(() => {
+    if (breakingCount > 0) {
+      setPersonaMode('ENFORCER');
+    } else {
+      setPersonaMode('GUARDIAN');
+    }
+  }, [breakingCount]);
 
   const togglePersona = () => {
     setPersonaMode((prev) => (prev === 'GUARDIAN' ? 'ENFORCER' : 'GUARDIAN'));
@@ -109,6 +126,9 @@ export const JarvisLogo: React.FC<JarvisLogoProps> = ({
         breakingCount={breakingCount}
         personaMode={personaMode}
         onTogglePersona={togglePersona}
+        onHighlightEdges={onHighlightEdges}
+        onClearHighlights={onClearHighlights}
+        isEdgeNarrationActive={isEdgeNarrationActive}
       />
 
     </div>

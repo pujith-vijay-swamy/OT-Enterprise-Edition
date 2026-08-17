@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
   Mic,
   MicOff,
@@ -59,6 +59,9 @@ export interface BrandVoiceAvatarProps {
   breakingCount?: number;
   personaMode?: 'GUARDIAN' | 'ENFORCER';
   onTogglePersona?: () => void;
+  onHighlightEdges?: (edgeIds: string[]) => void;
+  onClearHighlights?: () => void;
+  isEdgeNarrationActive?: boolean;
 }
 
 export const BrandVoiceAvatar: React.FC<BrandVoiceAvatarProps> = ({
@@ -68,6 +71,9 @@ export const BrandVoiceAvatar: React.FC<BrandVoiceAvatarProps> = ({
   breakingCount = 0,
   personaMode = 'GUARDIAN',
   onTogglePersona,
+  onHighlightEdges,
+  onClearHighlights,
+  isEdgeNarrationActive = false,
 }) => {
   const [isMuted, setIsMuted] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -75,8 +81,9 @@ export const BrandVoiceAvatar: React.FC<BrandVoiceAvatarProps> = ({
   const hideSubtitleTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isEnforcer = personaMode === 'ENFORCER';
 
-  const prNumber = ragContext?.activePr?.pr_number || 14;
-  const headBranch = ragContext?.activePr?.head_branch || 'feature/v2-upgrade';
+  const hasOpenPr = Boolean(ragContext?.activePr?.has_open_pr);
+  const prNumber = ragContext?.activePr?.pr_number || 0;
+  const headBranch = ragContext?.activePr?.head_branch || 'main';
   const baseBranch = ragContext?.activePr?.base_branch || 'main';
 
   // Live refs to avoid stale closures
@@ -165,18 +172,26 @@ export const BrandVoiceAvatar: React.FC<BrandVoiceAvatarProps> = ({
       breakingDetails = '- All static AST boundaries healthy (0 breaking changes detected across scanned microservices).';
     }
 
-    const servicesList = (ragContext?.services || []).map((s) => s.name).join(', ') || 'user-service, payment-gateway-service, notification-service, order-service, frontend-app';
+    const servicesList = (ragContext?.services || []).map((s) => s.name).join(', ') || 'user-service, payment-gateway-service, notification-service, order-service, checkout-frontend';
 
-    return `You are RepoTrace AI Core Voice Assistant, an enterprise static AST boundary intelligence agent (Main Model: Gemini 2.5 Flash Native Audio / Fallback: Gemini 3 Flash Live).
-Answer developer questions directly, accurately, and concisely using the real-time RAG context provided below.
-
-CURRENT PR RAG CONTEXT (PR #${prNumber}):
+    const contextSection = hasOpenPr
+      ? `ACTIVE PULL REQUEST (PR #${prNumber}):
 - Target Repositories: ${servicesList}
 - Base Branch: ${baseBranch}
 - Head Branch: ${headBranch}
 - Active Breaking Contract Drifts (${activeBreakingEdges.length} detected):
 ${breakingDetails}
-- Team Migration Policy: 'Maintain alias getters for 1 release cycle. Validate consumer AST contracts before merging.'
+- Team Migration Policy: 'Maintain alias getters for 1 release cycle. Validate consumer AST contracts before merging.'`
+      : `PRODUCTION MESH CONTEXT:
+- Target Repositories: ${servicesList}
+- Active Production Branch: ${baseBranch}
+- Open Pull Requests: None (Production mesh is synchronized)
+- Mesh AST Health: ${breakingDetails}`;
+
+    return `You are RepoTrace AI Core Voice Assistant, an enterprise static AST boundary intelligence agent (Main Model: Gemini 2.5 Flash Native Audio / Fallback: Gemini 3 Flash Live).
+Answer developer questions directly, accurately, and concisely using the real-time RAG context provided below.
+
+${contextSection}
 
 Persona Mode: ${
       isEnforcer
@@ -185,9 +200,11 @@ Persona Mode: ${
     }
 
 CRITICAL INSTRUCTIONS:
-1. When asked about breaking changes, explicitly list the affected endpoints (e.g. GET /api/v1/users/{user_id}, POST /api/v1/users), the field mutations (email -> user_email, tenant_id requirement), and the downstream affected services.
-2. Complete every thought in 2-3 full sentences.`;
-  }, [ragContext, isEnforcer, prNumber, headBranch, baseBranch, activeBreakingEdges]);
+1. Answer the developer's specific question naturally.
+2. If there are no open pull requests, talk about the overall microservice topology and health without mentioning closed PR numbers unless specifically asked.
+3. If asked about breaking changes on an active open PR, explicitly list the affected endpoints and field mutations.
+4. Complete every thought in 2-3 full sentences.`;
+  }, [ragContext, isEnforcer, hasOpenPr, prNumber, headBranch, baseBranch, activeBreakingEdges]);
 
   // Handle Open Lifecycle
   useEffect(() => {
@@ -221,16 +238,50 @@ CRITICAL INSTRUCTIONS:
     };
   }, [isOpen]);
 
+  const handleClose = useCallback(() => {
+    stopCapture();
+    disconnect();
+    stopPlayback();
+    resetSpeechState();
+    setIsDetailOpen(false);
+    setIsSubtitleVisible(false);
+    if (onClearHighlights) onClearHighlights();
+    onClose();
+  }, [stopCapture, disconnect, stopPlayback, resetSpeechState, onClose, onClearHighlights]);
+
+  // Autonomous Edge Spotlight: auto-activate when Enforcer speaks about breaking changes
+  useEffect(() => {
+    if (isEnforcer && isSpeaking && activeBreakingEdges.length > 0 && onHighlightEdges && !isEdgeNarrationActive) {
+      const breakingIds = activeBreakingEdges.map(e => e.id);
+      onHighlightEdges(breakingIds);
+    }
+  }, [isEnforcer, isSpeaking, activeBreakingEdges, onHighlightEdges, isEdgeNarrationActive]);
+
+  // Autonomous Return: auto-clear spotlight when speech ends
+  useEffect(() => {
+    if (!isSpeaking && isEdgeNarrationActive && onClearHighlights) {
+      // Delay slightly so subtitle remains visible during transition
+      const timer = setTimeout(() => {
+        onClearHighlights();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [isSpeaking, isEdgeNarrationActive, onClearHighlights]);
+
   // ESC Key Dismiss Listener
   useEffect(() => {
+    if (!isOpen) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        handleClose();
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, handleClose]);
 
   const handleQuickPrompt = (promptText: string) => {
     resetSpeechState();
@@ -262,12 +313,101 @@ CRITICAL INSTRUCTIONS:
   const primaryBrandHex = isEnforcer ? '#f43f5e' : '#06b6d4';
   const secondaryBrandHex = isEnforcer ? '#ff0033' : '#10b981';
 
+  // Compact Floating Mode (when edge narration is active, show mini widget over canvas)
+  if (isEdgeNarrationActive) {
+    return (
+      <div className="fixed bottom-6 right-6 z-50 w-[340px] bg-[#0a0a0a]/95 border-2 border-rose-600 rounded-2xl p-4 shadow-[0_0_40px_rgba(244,63,94,0.3)] backdrop-blur-xl font-mono text-white animate-in slide-in-from-bottom-4 duration-300">
+        
+        {/* Compact Header */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            {/* Mini Avatar Orb */}
+            <div className="relative w-10 h-10 flex items-center justify-center">
+              <div 
+                className="absolute inset-0 rounded-full filter blur-md pointer-events-none"
+                style={{
+                  background: `radial-gradient(circle, rgba(244,63,94,0.6) 0%, transparent 70%)`,
+                  opacity: glowOpacity,
+                }}
+              />
+              <svg className="absolute inset-0 w-full h-full animate-[spin_6s_linear_infinite] opacity-80" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="42" fill="none" stroke="#f43f5e" strokeWidth="3" strokeDasharray="10 6" />
+              </svg>
+              <div className="relative z-10">
+                <ShieldAlert className="w-4 h-4 text-rose-400 animate-pulse" />
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[10px] font-extrabold text-rose-300 uppercase">ENFORCER ACTIVE</div>
+              <div className={`text-[9px] font-bold uppercase ${
+                isSpeaking ? 'text-cyan-300' : isCapturing ? 'text-emerald-300' : 'text-neutral-400'
+              }`}>
+                {isSpeaking ? 'NARRATING...' : isCapturing ? 'LISTENING' : 'RETURNING...'}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {/* Close */}
+            <button
+              onClick={handleClose}
+              className="w-7 h-7 bg-neutral-800 hover:bg-rose-900 border border-neutral-600 hover:border-rose-500 rounded-full flex items-center justify-center text-neutral-300 hover:text-white cursor-pointer transition-all"
+              title="Close Voice Assistant"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+
+        {/* Live Subtitle */}
+        {isSubtitleVisible && activeSubtitle ? (
+          <div className="bg-black/80 border border-neutral-700 rounded-xl px-3 py-2 mb-2">
+            <p className="text-[11px] font-semibold leading-relaxed text-neutral-100">
+              {activeSubtitle}
+            </p>
+          </div>
+        ) : (
+          <div className="text-[10px] text-neutral-500 font-semibold mb-2">
+            Spotlighting {activeBreakingEdges.length} breaking edge{activeBreakingEdges.length !== 1 ? 's' : ''} on canvas...
+          </div>
+        )}
+
+        {/* Compact Controls */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsMuted(!isMuted)}
+            className={`flex-1 h-7 rounded-full text-[10px] font-bold uppercase flex items-center justify-center gap-1.5 cursor-pointer transition-all border ${
+              isMuted
+                ? 'bg-rose-950/90 border-rose-600 text-rose-300'
+                : 'bg-neutral-800 border-neutral-700 text-white'
+            }`}
+          >
+            {isMuted ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3 text-emerald-400" />}
+            {isMuted ? 'MUTED' : 'MIC ON'}
+          </button>
+          <button
+            onClick={onTogglePersona}
+            className={`flex-1 h-7 rounded-full text-[10px] font-bold uppercase flex items-center justify-center gap-1.5 cursor-pointer transition-all border ${
+              isEnforcer
+                ? 'bg-rose-950/80 border-rose-500 text-rose-300'
+                : 'bg-cyan-950/80 border-cyan-500 text-cyan-300'
+            }`}
+          >
+            {isEnforcer ? <ShieldAlert className="w-3 h-3" /> : <ShieldCheck className="w-3 h-3" />}
+            {isEnforcer ? 'ENFORCER' : 'GUARDIAN'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-white font-mono select-none overflow-hidden animate-in fade-in duration-300">
       
       {/* ✕ Floating Minimal Close Button (Top Right Corner Only) */}
       <button
-        onClick={onClose}
+        onClick={handleClose}
         className="fixed top-6 right-6 z-50 w-11 h-11 bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-700 hover:border-white rounded-full flex items-center justify-center text-neutral-300 hover:text-white transition-all shadow-2xl cursor-pointer group backdrop-blur-md"
         title="Close Voice Assistant (ESC)"
       >

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import Header from '@/components/Header';
 import TopologyCanvas from '@/components/TopologyCanvas';
@@ -102,10 +102,10 @@ export default function Dashboard() {
     all_prs: any[];
   }>({
     has_open_pr: false,
-    pr_number: 15,
-    head_branch: 'feature/v2-upgrade',
+    pr_number: 0,
+    head_branch: 'main',
     base_branch: 'main',
-    pr_url: 'https://github.com/pujith-vijay-swamy/UserService/pull/15',
+    pr_url: '',
     all_prs: []
   });
 
@@ -115,7 +115,27 @@ export default function Dashboard() {
   }, [activePr]);
 
   // Persistent Node Positions state preserved across tab switches
-  const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>({});
+  const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>({})
+
+  // Edge Spotlight State (Enforcer Visual Narration)
+  const [highlightedEdgeIds, setHighlightedEdgeIds] = useState<string[]>([]);
+  const [isEdgeNarrationActive, setIsEdgeNarrationActive] = useState<boolean>(false);
+
+  const handleHighlightEdges = useCallback((edgeIds: string[]) => {
+    setHighlightedEdgeIds(prev => {
+      if (prev.length === edgeIds.length && prev.every((id, i) => id === edgeIds[i])) {
+        return prev;
+      }
+      return edgeIds;
+    });
+    setIsEdgeNarrationActive(prev => (prev ? prev : true));
+    setActiveTab(prev => (prev === 'topology' ? prev : 'topology'));
+  }, []);
+
+  const handleClearHighlights = useCallback(() => {
+    setHighlightedEdgeIds(prev => (prev.length === 0 ? prev : []));
+    setIsEdgeNarrationActive(prev => (!prev ? prev : false));
+  }, []);
 
   // Helper check if a repo or service name has been deleted by the user
   const isDeletedService = (nameOrDir: string) => {
@@ -125,7 +145,7 @@ export default function Dashboard() {
     return liveList.some(d => {
       if (!d) return false;
       const dClean = d.toLowerCase().trim();
-      return clean === dClean || clean.includes(dClean) || dClean.includes(clean);
+      return clean === dClean;
     });
   };
 
@@ -135,7 +155,7 @@ export default function Dashboard() {
     const filteredBase = baseList.filter(r => !isDeletedService(r.name) && !isDeletedService(r.dir));
     if (filteredBase.length === 0) return;
 
-    const reposToScan = [...filteredBase];
+    const reposToScan: { dir: string; name: string }[] = filteredBase.slice();
 
     const currentOpenPrState = (isOpenPr !== undefined) ? isOpenPr : activePrRef.current.has_open_pr;
 
@@ -146,7 +166,7 @@ export default function Dashboard() {
 
     scanMultipleRepos(reposToScan).then(res => {
       if (res && res.contracts) {
-        handleLiveScanComplete(res.contracts, res.topology);
+        handleLiveScanComplete(res.contracts, res.topology, reposToScan);
       }
     }).catch(() => {});
   };
@@ -304,8 +324,8 @@ export default function Dashboard() {
 
   const handleLiveScanComplete = (extractedContracts: any[], extractedTopology?: any, scannedRepos?: { dir: string; name: string }[]) => {
     if (scannedRepos && scannedRepos.length > 0) {
-      const scannedNames = scannedRepos.map(r => r.name);
-      const remainingDeleted = deletedServiceIdsRef.current.filter(id => !scannedNames.includes(id));
+      const scannedNames = scannedRepos.map(r => r.name.toLowerCase().trim());
+      const remainingDeleted = deletedServiceIdsRef.current.filter(id => !scannedNames.includes(id.toLowerCase().trim()));
       deletedServiceIdsRef.current = remainingDeleted;
       setDeletedServiceIds(remainingDeleted);
       try {
@@ -441,6 +461,12 @@ export default function Dashboard() {
     return s === 'BREAKING' || s === 'HIGH_CONFIDENCE_BREAK' || s === 'POSSIBLE_BREAK' || s === 'WARN' || (e.issues && e.issues.length > 0);
   }).length;
 
+  const memoizedRagContext = React.useMemo(() => ({
+    edges,
+    services,
+    activePr
+  }), [edges, services, activePr]);
+
   return (
     <div className="min-h-screen bg-[#050505] text-neutral-100 flex flex-col selection:bg-blue-600 selection:text-white font-mono">
       
@@ -459,7 +485,10 @@ export default function Dashboard() {
         onLoginGitHub={handleLoginGitHub}
         onLogoutGitHub={handleLogoutGitHub}
         onSessionUpdated={setGithubSession}
-        ragContext={{ edges, services, activePr }}
+        ragContext={memoizedRagContext}
+        onHighlightEdges={handleHighlightEdges}
+        onClearHighlights={handleClearHighlights}
+        isEdgeNarrationActive={isEdgeNarrationActive}
       />
 
       {/* Toolbar when services are loaded */}
@@ -520,6 +549,7 @@ export default function Dashboard() {
                 onSelectEdge={() => {}}
                 onRemoveService={handleRemoveSingleService}
                 activePr={activePr}
+                highlightedEdgeIds={highlightedEdgeIds}
               />
             )}
 

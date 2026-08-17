@@ -283,12 +283,12 @@ export async function fetchLatestOpenPR(owner: string, repo: string): Promise<La
 
   return {
     has_open_pr: false,
-    number: 15,
-    head_branch: 'feature/v2-upgrade',
+    number: 0,
+    head_branch: 'main',
     base_branch: 'main',
-    html_url: `https://github.com/${targetOwner}/${targetRepo}/pull/15`,
-    title: 'v2 upgrade',
-    state: 'closed',
+    html_url: '',
+    title: '',
+    state: 'none',
     all_prs: []
   };
 }

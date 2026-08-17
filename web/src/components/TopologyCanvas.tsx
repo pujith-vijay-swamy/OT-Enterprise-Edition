@@ -20,10 +20,18 @@ import '@xyflow/react/dist/style.css';
 import { ServiceNodeData, ServiceEdgeData } from '../lib/types';
 import { Database, Globe, Activity, ShieldAlert, ArrowRight, X } from 'lucide-react';
 
+const spotlightStyles = `
+@keyframes spotlight-pulse {
+  0%, 100% { filter: drop-shadow(0 0 8px #f43f5e) drop-shadow(0 0 16px #f43f5e); }
+  50% { filter: drop-shadow(0 0 14px #ff1744) drop-shadow(0 0 28px #ff1744) drop-shadow(0 0 40px rgba(255,23,68,0.4)); }
+}
+`;
+
 interface TopologyCanvasProps {
   services: ServiceNodeData[];
   edges: ServiceEdgeData[];
   blastRadiusMode: boolean;
+  highlightedEdgeIds?: string[];
   savedPositions: Record<string, { x: number; y: number }>;
   onUpdatePosition: (id: string, pos: { x: number; y: number }) => void;
   onSelectNode: (service: ServiceNodeData) => void;
@@ -45,8 +53,8 @@ const ServiceNodeComponent = ({ data }: { data: any }) => {
   const isV1 = data.id.includes('v1');
   const isBranchNode = isV1 || isV2;
   const isGhost = isV2 && Boolean(data.has_open_pr);
-  const prNumber = data.pr_number || 14;
-  const headBranch = data.head_branch || 'feature/v2-upgrade';
+  const prNumber = data.pr_number || 0;
+  const headBranch = data.head_branch || 'main';
 
   const isBreaking = data.health === 'BREAKING';
   const isWarn = data.health === 'WARN';
@@ -84,10 +92,31 @@ const ServiceNodeComponent = ({ data }: { data: any }) => {
     cardEffect = 'ring-2 ring-rose-500 shadow-[4px_4px_0px_0px_#f43f5e]';
   }
 
+  const isSpotlighted = Boolean(data.is_spotlighted);
+  const isDimmed = Boolean(data.is_dimmed);
+
+  let spotlightClass = '';
+  if (isSpotlighted) {
+    spotlightClass = 'ring-4 ring-rose-500 shadow-[0_0_40px_rgba(244,63,94,0.8)] scale-[1.03] transition-all duration-500';
+  } else if (isDimmed) {
+    spotlightClass = 'opacity-20 filter blur-[0.5px] transition-all duration-500';
+  }
+
   return (
     <div
-      className={`p-4 min-w-[285px] max-w-[315px] ${borderStyle} ${cardEffect} group relative font-mono`}
+      className={`p-4 min-w-[285px] max-w-[315px] ${borderStyle} ${cardEffect} ${spotlightClass} group relative font-mono transition-all duration-300`}
     >
+      {/* Dynamic Enforcer Active Spotlight Banner */}
+      {isSpotlighted && (
+        <div className="w-full px-2 py-1 mb-2 bg-rose-600 border border-rose-400 text-white text-[9.5px] font-extrabold flex items-center justify-between shadow-[0_0_12px_#f43f5e] animate-pulse">
+          <span className="flex items-center gap-1">
+            <ShieldAlert className="w-3.5 h-3.5 text-white animate-spin" style={{ animationDuration: '3s' }} />
+            <span>🚨 ENFORCER SPOTLIGHT</span>
+          </span>
+          <span className="bg-black/50 px-1.5 py-0.5 rounded text-[8.5px] font-bold">IMPACTED</span>
+        </div>
+      )}
+
       {/* Branch Context Banner — shows this is the SAME repo on different branches */}
       {isBranchNode && (
         <div className={`w-full px-2.5 py-1.5 mb-2.5 text-[10px] font-extrabold flex items-center justify-between ${
@@ -98,7 +127,7 @@ const ServiceNodeComponent = ({ data }: { data: any }) => {
           <span className="flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${isV2 ? 'bg-rose-500 animate-ping' : 'bg-emerald-500'}`}></span>
             {isV2 ? (
-              <>{isGhost ? '👻' : '🔀'} PR #{prNumber} — FEATURE BRANCH</>
+              <>{prNumber > 0 ? `🔀 PR #${prNumber}` : `🔀 ${headBranch}`} — FEATURE BRANCH</>
             ) : (
               <>🌿 PRODUCTION — MAIN BRANCH</>
             )}
@@ -149,7 +178,7 @@ const ServiceNodeComponent = ({ data }: { data: any }) => {
               </h3>
               {isV2 && (
                 <span className="text-[9px] font-extrabold px-1.5 py-0.5 bg-rose-950 text-rose-300 border border-rose-600 uppercase flex items-center gap-1 shadow-[1px_1px_0px_0px_#f43f5e]">
-                  🔀 PR #{prNumber}
+                  🔀 {prNumber > 0 ? `PR #${prNumber}` : headBranch}
                 </span>
               )}
               {isV1 && (
@@ -271,16 +300,20 @@ const CustomHealthEdge = ({
     ? ' [POSSIBLE BREAK]'
     : '';
 
+  const isSpotlighted = Boolean(data?.isSpotlighted);
+  const isDimmed = Boolean(data?.isDimmed);
+
   return (
-    <>
+    <g style={{ opacity: isDimmed ? 0.12 : 1, transition: 'opacity 0.5s ease' }}>
       <path
         id={id}
         style={{
           ...style,
-          stroke: strokeColor,
-          strokeWidth: isHighConfidenceBreak ? 2.5 : 2,
+          stroke: isSpotlighted ? '#ff1744' : strokeColor,
+          strokeWidth: isSpotlighted ? 4 : (isHighConfidenceBreak ? 2.5 : 2),
           strokeDasharray: strokeDash,
-          animation: isHighConfidenceBreak ? 'dash 1s linear infinite' : 'none'
+          animation: isSpotlighted ? 'dash 0.6s linear infinite, spotlight-pulse 1.5s ease-in-out infinite' : (isHighConfidenceBreak ? 'dash 1s linear infinite' : 'none'),
+          filter: isSpotlighted ? 'drop-shadow(0 0 8px #f43f5e) drop-shadow(0 0 16px #f43f5e)' : undefined
         }}
         className="react-flow__edge-path cursor-pointer hover:stroke-width-4 transition-all"
         d={edgePath}
@@ -288,7 +321,7 @@ const CustomHealthEdge = ({
       />
 
       {/* Label Badge on Edge */}
-      {data?.target_path && (
+      {Boolean(data?.target_path) && (
         <foreignObject
           width={280}
           height={34}
@@ -297,13 +330,13 @@ const CustomHealthEdge = ({
           className="overflow-visible pointer-events-auto"
         >
           <div
-            className={`text-[10px] font-mono px-2.5 py-1 border-2 text-center truncate shadow-[2px_2px_0px_0px_#000] cursor-pointer transition-all hover:scale-105 uppercase font-bold ${badgeStyle}`}
+            className={`text-[10px] font-mono px-2.5 py-1 border-2 text-center truncate cursor-pointer transition-all hover:scale-105 uppercase font-bold ${badgeStyle} ${isSpotlighted ? 'ring-2 ring-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.6)]' : 'shadow-[2px_2px_0px_0px_#000]'}`}
           >
             {labelText}{tierBadgeText}
           </div>
         </foreignObject>
       )}
-    </>
+    </g>
   );
 };
 
@@ -314,6 +347,7 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
   services,
   edges,
   blastRadiusMode,
+  highlightedEdgeIds,
   savedPositions,
   onUpdatePosition,
   onSelectNode,
@@ -441,6 +475,8 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
       if (hasBreaking) status = 'BREAKING';
       else if (hasWarn) status = 'WARN';
 
+      const hasHighlights = highlightedEdgeIds && highlightedEdgeIds.length > 0;
+
       consolidated.push({
         id: `consolidated-${key}`,
         source: primary.source,
@@ -453,13 +489,19 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
           target_path: primary.target_path,
           method: primary.method,
           endpoint_count: groupEdges.length,
-          issues: groupEdges.flatMap(e => e.issues || [])
+          issues: groupEdges.flatMap(e => e.issues || []),
+          isSpotlighted: hasHighlights && highlightedEdgeIds.some(hid => 
+            groupEdges.some(ge => ge.id === hid)
+          ),
+          isDimmed: hasHighlights && !highlightedEdgeIds.some(hid => 
+            groupEdges.some(ge => ge.id === hid)
+          )
         }
       });
     });
 
     return consolidated;
-  }, [edges, validServiceIds]);
+  }, [edges, validServiceIds, highlightedEdgeIds]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edgesState, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -468,6 +510,27 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
   useEffect(() => {
     setEdges(initialEdges);
   }, [initialEdges, setEdges]);
+
+  // Identify all services impacted by the highlighted breaking edges (for node spotlight)
+  const spotlightServiceIds = useMemo(() => {
+    if (!highlightedEdgeIds || highlightedEdgeIds.length === 0) return new Set<string>();
+    const set = new Set<string>();
+    edges.forEach(e => {
+      if (highlightedEdgeIds.includes(e.id)) {
+        set.add(e.source);
+        set.add(e.target);
+      }
+    });
+    // Also include any node marked BREAKING or ghost PR node
+    servicesWithDynamicHealth.forEach(s => {
+      if (s.health === 'BREAKING' || s.id.includes('v2')) {
+        set.add(s.id);
+      }
+    });
+    return set;
+  }, [highlightedEdgeIds, edges, servicesWithDynamicHealth]);
+
+  const hasEdgeHighlights = Boolean(highlightedEdgeIds && highlightedEdgeIds.length > 0);
 
   // Smoothly sync nodes state while preserving ReactFlow's initialized node objects & measured dimensions
   useEffect(() => {
@@ -478,6 +541,8 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
         const existing = prevMap.get(s.id);
         const isSelectedBlast = blastRadiusMode && s.id === selectedBlastSourceId;
         const isImpactedBlast = blastRadiusMode && impactedServiceIds.has(s.id);
+        const isSpotlightedNode = hasEdgeHighlights && spotlightServiceIds.has(s.id);
+        const isDimmedNode = hasEdgeHighlights && !spotlightServiceIds.has(s.id);
 
         const pos = existing?.position || (savedPositions && savedPositions[s.id]) || defaultPositions[s.id] || {
           x: s.service_type === 'consumer' ? 60 : (s.service_type === 'fullstack' ? 480 : 900),
@@ -490,17 +555,19 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
           position: pos,
           data: {
             ...s,
+            is_spotlighted: isSpotlightedNode,
+            is_dimmed: isDimmedNode,
             is_selected_blast: isSelectedBlast,
             is_impacted_blast: isImpactedBlast,
             onRemoveService,
-            has_open_pr: Boolean(activePr ? activePr.has_open_pr : true),
-            pr_number: activePr?.pr_number || 14,
-            head_branch: activePr?.head_branch || 'feature/v2-upgrade'
+            has_open_pr: Boolean(activePr ? activePr.has_open_pr : false),
+            pr_number: activePr?.pr_number || 0,
+            head_branch: activePr?.head_branch || 'main'
           }
         };
       });
     });
-  }, [servicesWithDynamicHealth, savedPositions, defaultPositions, blastRadiusMode, selectedBlastSourceId, impactedServiceIds, onRemoveService, setNodes, activePr]);
+  }, [servicesWithDynamicHealth, savedPositions, defaultPositions, blastRadiusMode, selectedBlastSourceId, impactedServiceIds, onRemoveService, setNodes, activePr, hasEdgeHighlights, spotlightServiceIds]);
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
@@ -538,6 +605,10 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
   return (
     <div className="relative w-full h-[calc(100vh-140px)] border-2 border-[#262626] overflow-hidden bg-[#050505] brutal-card">
       
+      {highlightedEdgeIds && highlightedEdgeIds.length > 0 && (
+        <style dangerouslySetInnerHTML={{ __html: spotlightStyles }} />
+      )}
+
       {/* Top Banner overlay for Blast Radius Mode */}
       {blastRadiusMode && (
         <div className="absolute top-4 left-4 z-20 bg-[#0a0a0a] border-2 border-rose-600 p-4 shadow-[4px_4px_0px_0px_#f43f5e] max-w-sm font-mono">

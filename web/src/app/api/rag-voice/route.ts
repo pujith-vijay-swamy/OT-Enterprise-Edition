@@ -37,8 +37,9 @@ export async function POST(req: NextRequest) {
 
     const apiKey = getGeminiApiKey(clientKey);
 
-    const prNumber = ragContext?.activePr?.pr_number || 14;
-    const headBranch = ragContext?.activePr?.head_branch || 'feature/v2-upgrade';
+    const hasOpenPr = Boolean(ragContext?.activePr?.has_open_pr);
+    const prNumber = ragContext?.activePr?.pr_number || 0;
+    const headBranch = ragContext?.activePr?.head_branch || 'main';
     const baseBranch = ragContext?.activePr?.base_branch || 'main';
 
     const rawEdges = ragContext?.edges || [];
@@ -67,9 +68,26 @@ export async function POST(req: NextRequest) {
       breakingDetails = '- All static AST boundaries healthy (0 breaking contract changes detected across scanned microservices).';
     }
 
-    const isTextAdvisory = mode === 'text_advisory';
+    const servicesList =
+      (ragContext?.services || []).map((s: any) => s.name || s.id).join(', ') ||
+      'user-service, payment-gateway-service, notification-service, order-service, checkout-frontend';
 
+    const isTextAdvisory = mode === 'text_advisory';
     const isEnforcer = personaMode === 'ENFORCER';
+
+    const contextBlock = hasOpenPr
+      ? `ACTIVE PULL REQUEST (PR #${prNumber}):
+- Base Branch: ${baseBranch}
+- Head Branch: ${headBranch}
+- Target Services: ${servicesList}
+- Active Breaking Contract Drifts (${breakingEdges.length} detected):
+${breakingDetails}
+- Team Migration Policy: 'Maintain alias getters for 1 release cycle. Validate consumer AST contracts before merging.'`
+      : `PRODUCTION MICROSERVICES CONTEXT:
+- Active Production Branch: ${baseBranch}
+- Open Pull Requests: None (Production baseline is active and in sync)
+- Monitored Services: ${servicesList}
+- Mesh AST Health: ${breakingDetails}`;
 
     const systemInstruction = `You are RepoTrace ${
       isTextAdvisory
@@ -77,28 +95,23 @@ export async function POST(req: NextRequest) {
         : 'Live Voice Assistant (Powered by Gemini Flash Live)'
     }, an autonomous enterprise static AST contract intelligence system.
 
-CURRENT PR RAG CONTEXT (PR #${prNumber}):
-- Base Branch: ${baseBranch}
-- Head Branch: ${headBranch}
-- Monitored Services: ${(ragContext?.services || []).map((s: any) => s.name).join(', ') || 'user-service, payment-gateway-service, notification-service, order-service, frontend-app'}
-- Active Breaking Contract Drifts Detected in AST:
-${breakingDetails}
-- Team Migration Policy: 'Maintain alias getters for 1 release cycle. Validate consumer AST contracts before merging.'
+${contextBlock}
 
 YOUR ACTIVE PERSONA: ${
       isEnforcer
         ? `[ENFORCER / MERGE GATEKEEPER MODE]
 Tone: Assertive, authoritative, zero-tolerance for breaking changes.
-Mission: Block unsafe PR merges. Warn the developer that this PR will break production dependencies. Explicitly flag the breaking endpoints, deleted/renamed fields, and tell them exactly why CI merge is BLOCKED until they fix or alias the drifts.`
+Mission: Block unsafe PR merges. Warn the developer that breaking changes will break production dependencies. Explicitly flag breaking endpoints and deleted/renamed fields.`
         : `[GUARDIAN / ADVISORY MODE]
 Tone: Constructive, collaborative, and educational.
-Mission: Assist the developer with smooth migration. Provide actionable guidance such as adding backward-compatible alias getters, deprecation schedules, and updating consumer TypeScript interfaces.`
+Mission: Assist the developer with smooth migration and architecture guidance. Provide actionable advice like backward-compatible aliases and TypeScript interface updates.`
     }
 
 CRITICAL RULES:
-1. When asked about breaking changes, explicitly state the breaking endpoints (e.g. GET /api/v1/users/{user_id}, POST /api/v1/users), specific field modifications (email -> user_email, tenant_id required), and affected consumer microservices.
-2. Adopt the tone and mission of your active persona.
-3. Keep spoken answers concise, technical, conversational, and under 3 complete sentences.`;
+1. Answer the developer's specific question directly, accurately, and naturally.
+2. If there are no open pull requests, focus on the overall microservice mesh health, connected services, and architecture. Do NOT mention closed or past PR numbers unless the developer explicitly asks about them.
+3. If there is an active open pull request with breaking changes, explicitly state the breaking endpoints (e.g. GET /api/v1/users/{user_id}, POST /api/v1/users), specific field modifications (email -> user_email, tenant_id required), and affected consumer microservices.
+4. Keep spoken answers concise, technical, conversational, and under 3 complete sentences.`;
 
     // Multi-tier high-availability models list to prevent quota exhaustion
     const candidateModels = [
