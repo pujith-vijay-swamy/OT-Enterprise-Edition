@@ -690,7 +690,7 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
         onNodeDragStart={handleMoveStart}
         onNodeDragStop={(_, node) => {
           handleMoveEnd();
-          if (onUpdatePosition) {
+          if (onUpdatePosition && node?.id && node?.position) {
             onUpdatePosition(node.id, node.position);
           }
         }}

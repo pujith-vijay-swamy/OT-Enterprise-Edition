@@ -271,12 +271,13 @@ export default function Dashboard() {
     setGithubSession({ authenticated: false });
   };
 
-  const handleUpdatePosition = (id: string, pos: { x: number; y: number }) => {
+  const handleUpdatePosition = useCallback((id: string, pos: { x: number; y: number }) => {
+    if (!id || !pos || typeof pos.x !== 'number' || typeof pos.y !== 'number') return;
     setNodePositions(prev => ({
       ...prev,
       [id]: pos
     }));
-  };
+  }, []);
 
   const handleRefresh = () => {
     setIsScanning(true);
