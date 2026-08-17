@@ -179,11 +179,11 @@ export default function Dashboard() {
     fetchLatestOpenPR(targetOwner, targetRepo).then(pr => {
       if (pr) {
         setActivePr({
-          has_open_pr: pr.has_open_pr,
-          pr_number: pr.number,
-          head_branch: pr.head_branch,
-          base_branch: pr.base_branch,
-          pr_url: pr.html_url,
+          has_open_pr: Boolean(pr.has_open_pr),
+          pr_number: pr.has_open_pr ? (pr.number || 0) : 0,
+          head_branch: pr.has_open_pr ? (pr.head_branch || 'main') : 'main',
+          base_branch: pr.base_branch || 'main',
+          pr_url: pr.has_open_pr ? (pr.html_url || '') : '',
           all_prs: pr.all_prs || []
         });
         scanMesh(pr.has_open_pr);
@@ -217,19 +217,20 @@ export default function Dashboard() {
         // Dynamically update PR number and trigger background scan if new PR detected
         if (latestPr) {
           setActivePr(prev => {
-            if (
-              prev.pr_number !== latestPr.number ||
-              prev.has_open_pr !== latestPr.has_open_pr ||
-              (latestPr.all_prs && prev.all_prs?.length !== latestPr.all_prs.length)
-            ) {
+            const hasChanged =
+              prev.pr_number !== (latestPr.has_open_pr ? latestPr.number : 0) ||
+              prev.has_open_pr !== Boolean(latestPr.has_open_pr) ||
+              (latestPr.all_prs && prev.all_prs?.length !== latestPr.all_prs.length);
+
+            if (hasChanged) {
               // Trigger mesh scan on PR status/number change
               scanMesh(latestPr.has_open_pr);
               return {
-                has_open_pr: latestPr.has_open_pr,
-                pr_number: latestPr.number,
-                head_branch: latestPr.head_branch,
-                base_branch: latestPr.base_branch,
-                pr_url: latestPr.html_url,
+                has_open_pr: Boolean(latestPr.has_open_pr),
+                pr_number: latestPr.has_open_pr ? (latestPr.number || 0) : 0,
+                head_branch: latestPr.has_open_pr ? (latestPr.head_branch || 'main') : 'main',
+                base_branch: latestPr.base_branch || 'main',
+                pr_url: latestPr.has_open_pr ? (latestPr.html_url || '') : '',
                 all_prs: latestPr.all_prs || []
               };
             }

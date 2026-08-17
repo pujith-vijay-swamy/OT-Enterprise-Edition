@@ -228,13 +228,13 @@ export async function fetchLatestOpenPR(owner: string, repo: string): Promise<La
     clearTimeout(timer);
     if (res.ok) {
       const data = await res.json();
-      if (data && data.number) {
+      if (data) {
         return {
           has_open_pr: Boolean(data.has_open_pr),
-          number: data.number,
-          head_branch: data.head_branch || 'feature/v2-upgrade',
+          number: data.has_open_pr ? (data.number || 0) : 0,
+          head_branch: data.has_open_pr ? (data.head_branch || 'main') : 'main',
           base_branch: data.base_branch || 'main',
-          html_url: data.html_url || '',
+          html_url: data.has_open_pr ? (data.html_url || '') : '',
           title: data.title || '',
           state: data.state || 'closed',
           all_prs: data.all_prs || []
@@ -258,23 +258,23 @@ export async function fetchLatestOpenPR(owner: string, repo: string): Promise<La
           title: p.title || '',
           state: p.state || 'closed',
           is_open: p.state === 'open',
-          head_branch: p.head?.ref || 'feature/v2-upgrade',
+          head_branch: p.head?.ref || 'main',
           base_branch: p.base?.ref || 'main',
           html_url: p.html_url || `https://github.com/${targetOwner}/${targetRepo}/pull/${p.number}`
         }));
 
         const open_prs = all_prs.filter((p: any) => p.is_open);
         const has_open_pr = open_prs.length > 0;
-        const targetPR = open_prs.length > 0 ? open_prs[0] : all_prs[0];
+        const targetPR = open_prs.length > 0 ? open_prs[0] : null;
 
         return {
           has_open_pr,
-          number: targetPR.number,
-          head_branch: targetPR.head_branch,
-          base_branch: targetPR.base_branch,
-          html_url: targetPR.html_url,
-          title: targetPR.title,
-          state: targetPR.state,
+          number: targetPR ? targetPR.number : 0,
+          head_branch: targetPR ? targetPR.head_branch : 'main',
+          base_branch: targetPR ? targetPR.base_branch : 'main',
+          html_url: targetPR ? targetPR.html_url : '',
+          title: targetPR ? targetPR.title : '',
+          state: targetPR ? targetPR.state : (all_prs.length > 0 ? 'closed' : 'none'),
           all_prs
         };
       }

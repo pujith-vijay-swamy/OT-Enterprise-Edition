@@ -665,11 +665,11 @@ class RequestHandler(BaseHTTPRequestHandler):
                         
                         open_prs = [p for p in all_prs if p["is_open"]]
                         has_open_pr = len(open_prs) > 0
-                        latest_pr = open_prs[0] if has_open_pr else (all_prs[0] if len(all_prs) > 0 else None)
+                        latest_pr = open_prs[0] if has_open_pr else None
                         
                         if latest_pr:
                             self.send_json_response(200, {
-                                "has_open_pr": has_open_pr,
+                                "has_open_pr": True,
                                 "number": latest_pr["number"],
                                 "head_branch": latest_pr["head_branch"],
                                 "base_branch": latest_pr["base_branch"],
@@ -681,9 +681,13 @@ class RequestHandler(BaseHTTPRequestHandler):
                         else:
                             self.send_json_response(200, {
                                 "has_open_pr": False,
-                                "number": None,
-                                "message": "No PRs found",
-                                "all_prs": []
+                                "number": 0,
+                                "head_branch": "main",
+                                "base_branch": "main",
+                                "html_url": "",
+                                "title": "",
+                                "state": all_prs[0]["state"] if len(all_prs) > 0 else "none",
+                                "all_prs": all_prs
                             })
                 except Exception as e:
                     self.send_json_response(200, {

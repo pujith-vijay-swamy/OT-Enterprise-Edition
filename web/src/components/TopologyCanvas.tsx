@@ -49,12 +49,12 @@ interface TopologyCanvasProps {
 
 // Ultra-Brutalist Microservice Node Component
 const ServiceNodeComponent = ({ data }: { data: any }) => {
-  const isV2 = data.id.includes('v2') || data.is_ghost;
-  const isV1 = data.id.includes('v1');
+  const isV2 = (data.id.includes('v2') || data.is_ghost) && Boolean(data.has_open_pr);
+  const isV1 = data.id.includes('v1') && Boolean(data.has_open_pr);
   const isBranchNode = (isV1 || isV2) && Boolean(data.has_open_pr);
   const isGhost = isV2 && Boolean(data.has_open_pr);
-  const prNumber = data.pr_number || 0;
-  const headBranch = data.head_branch || 'main';
+  const prNumber = data.has_open_pr ? (data.pr_number || 0) : 0;
+  const headBranch = data.has_open_pr ? (data.head_branch || 'main') : 'main';
 
   const isBreaking = data.health === 'BREAKING';
   const isWarn = data.health === 'WARN';
