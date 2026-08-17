@@ -51,7 +51,7 @@ interface TopologyCanvasProps {
 const ServiceNodeComponent = ({ data }: { data: any }) => {
   const isV2 = data.id.includes('v2') || data.is_ghost;
   const isV1 = data.id.includes('v1');
-  const isBranchNode = isV1 || isV2;
+  const isBranchNode = (isV1 || isV2) && Boolean(data.has_open_pr);
   const isGhost = isV2 && Boolean(data.has_open_pr);
   const prNumber = data.pr_number || 0;
   const headBranch = data.head_branch || 'main';
@@ -388,7 +388,7 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
       const connectedEdges = edges.filter(e => e.source === s.id || e.target === s.id);
       const hasBreaking = connectedEdges.some(e => 
         e.status === 'BREAKING' || e.status === 'HIGH_CONFIDENCE_BREAK' || e.confidence_tier === 'HIGH_CONFIDENCE_BREAK'
-      ) || s.id.includes('v2') || s.id.includes('user-service-v2');
+      );
 
       const hasWarn = connectedEdges.some(e => 
         e.status === 'WARN' || e.status === 'POSSIBLE_BREAK' || e.confidence_tier === 'POSSIBLE_BREAK'
@@ -465,7 +465,7 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
       const primary = groupEdges[0];
       const hasBreaking = groupEdges.some(e => 
         e.status === 'BREAKING' || e.status === 'HIGH_CONFIDENCE_BREAK' || e.confidence_tier === 'HIGH_CONFIDENCE_BREAK'
-      ) || primary.target.includes('v2') || primary.source.includes('v2');
+      );
 
       const hasWarn = groupEdges.some(e => 
         e.status === 'WARN' || e.status === 'POSSIBLE_BREAK' || e.confidence_tier === 'POSSIBLE_BREAK'
@@ -521,9 +521,9 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
         set.add(e.target);
       }
     });
-    // Also include any node marked BREAKING or ghost PR node
+    // Also include any node marked BREAKING
     servicesWithDynamicHealth.forEach(s => {
-      if (s.health === 'BREAKING' || s.id.includes('v2')) {
+      if (s.health === 'BREAKING') {
         set.add(s.id);
       }
     });

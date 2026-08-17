@@ -354,7 +354,7 @@ export default function Dashboard() {
               verification_status: e.verification_status,
               verification_note: e.verification_note,
               ai_explanation: e.ai_explanation || (
-                (e.status === 'BREAKING' || e.status === 'HIGH_CONFIDENCE_BREAK' || (e.producer_service && e.producer_service.includes('v2')))
+                (e.status === 'BREAKING' || e.status === 'HIGH_CONFIDENCE_BREAK')
                   ? `AI Advisory (Gemini 3.5): Static AST boundary analysis confirmed breaking contract drift on ${e.target_path}. Consumer ${e.consumer_service} expects baseline signature, but producer ${e.producer_service} requires mutated path/schema.`
                   : undefined
               ),
