@@ -172,6 +172,16 @@ export default function Dashboard() {
 
     const reposToScan: { dir: string; name: string }[] = filteredBase.slice();
 
+    const currentOpenPrState = (isOpenPr !== undefined) ? isOpenPr : activePrRef.current.has_open_pr;
+
+    // Dynamically include the PR branch contract ONLY when a real open PR exists on GitHub!
+    if (currentOpenPrState) {
+      const hasUserService = reposToScan.some(r => r.name.toLowerCase().includes('user') || r.dir.toLowerCase().includes('user'));
+      if (hasUserService && !isDeletedService('user-service-v2') && !reposToScan.some(r => r.name === 'user-service-v2' || r.dir.includes('user-service-v2'))) {
+        reposToScan.push({ dir: 'samples/user-service-v2', name: 'user-service-v2' });
+      }
+    }
+
     scanMultipleRepos(reposToScan).then(res => {
       if (res && res.contracts) {
         handleLiveScanComplete(res.contracts, res.topology, reposToScan, Boolean(overrideRepos));
