@@ -2,7 +2,7 @@ services:
   - type: web
     name: repotrace-engine
     env: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r engine/requirements.txt || true
     startCommand: python engine/repotrace/server.py
     envVars:
       - key: PYTHON_VERSION
