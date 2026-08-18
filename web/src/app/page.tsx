@@ -44,10 +44,19 @@ export default function Dashboard() {
   const [activeReposToScan, setActiveReposToScan] = useState<{ dir: string; name: string }[]>(() => {
     if (typeof window !== 'undefined') {
       try {
+        const savedDeleted = localStorage.getItem('repotrace_deleted_services');
+        const deletedArr: string[] = savedDeleted ? JSON.parse(savedDeleted) : [];
+
         const saved = localStorage.getItem('repotrace_active_repos');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.filter((r: any) => 
+              r.name !== 'user-service-v2' &&
+              !r.dir?.includes('user-service-v2') &&
+              !deletedArr.some(d => r.name?.toLowerCase().includes(d.toLowerCase()) || r.dir?.toLowerCase().includes(d.toLowerCase()))
+            );
+          }
         }
       } catch (e) {}
     }
@@ -145,21 +154,27 @@ export default function Dashboard() {
     return liveList.some(d => {
       if (!d) return false;
       const dClean = d.toLowerCase().trim();
-      return clean === dClean;
+      return (
+        clean === dClean ||
+        clean.endsWith(`/${dClean}`) ||
+        clean.endsWith(`\\${dClean}`) ||
+        clean.includes(dClean) ||
+        dClean.includes(clean)
+      );
     });
   };
 
   // Helper function to scan enterprise microservice mesh contracts
   const scanMesh = (isOpenPr?: boolean, overrideRepos?: { dir: string; name: string }[]) => {
     const baseList = overrideRepos || activeReposToScanRef.current;
-    const filteredBase = baseList.filter(r => !isDeletedService(r.name) && !isDeletedService(r.dir));
+    const filteredBase = baseList.filter(r => !isDeletedService(r.name) && !isDeletedService(r.dir) && r.name !== 'user-service-v2' && !r.dir.includes('user-service-v2'));
     if (filteredBase.length === 0) return;
 
     const reposToScan: { dir: string; name: string }[] = filteredBase.slice();
 
     scanMultipleRepos(reposToScan).then(res => {
       if (res && res.contracts) {
-        handleLiveScanComplete(res.contracts, res.topology, reposToScan);
+        handleLiveScanComplete(res.contracts, res.topology, reposToScan, Boolean(overrideRepos));
       }
     }).catch(() => {});
   };
@@ -317,20 +332,28 @@ export default function Dashboard() {
     setEdges(prev => prev.filter(e => e.source !== serviceId && e.target !== serviceId));
   };
 
-  const handleLiveScanComplete = (extractedContracts: any[], extractedTopology?: any, scannedRepos?: { dir: string; name: string }[]) => {
+  const handleLiveScanComplete = (
+    extractedContracts: any[],
+    extractedTopology?: any,
+    scannedRepos?: { dir: string; name: string }[],
+    isExplicitUserScan?: boolean
+  ) => {
     if (scannedRepos && scannedRepos.length > 0) {
-      const scannedNames = scannedRepos.map(r => r.name.toLowerCase().trim());
-      const remainingDeleted = deletedServiceIdsRef.current.filter(id => !scannedNames.includes(id.toLowerCase().trim()));
-      deletedServiceIdsRef.current = remainingDeleted;
-      setDeletedServiceIds(remainingDeleted);
-      try {
-        localStorage.setItem('repotrace_deleted_services', JSON.stringify(remainingDeleted));
-      } catch (e) {}
+      if (isExplicitUserScan) {
+        const scannedNames = scannedRepos.map(r => r.name.toLowerCase().trim());
+        const remainingDeleted = deletedServiceIdsRef.current.filter(id => !scannedNames.includes(id.toLowerCase().trim()));
+        deletedServiceIdsRef.current = remainingDeleted;
+        setDeletedServiceIds(remainingDeleted);
+        try {
+          localStorage.setItem('repotrace_deleted_services', JSON.stringify(remainingDeleted));
+        } catch (e) {}
+      }
 
-      activeReposToScanRef.current = scannedRepos;
-      setActiveReposToScan(scannedRepos);
+      const cleanScanned = scannedRepos.filter(r => !isDeletedService(r.name) && !isDeletedService(r.dir) && r.name !== 'user-service-v2' && !r.dir.includes('user-service-v2'));
+      activeReposToScanRef.current = cleanScanned;
+      setActiveReposToScan(cleanScanned);
       try {
-        localStorage.setItem('repotrace_active_repos', JSON.stringify(scannedRepos));
+        localStorage.setItem('repotrace_active_repos', JSON.stringify(cleanScanned));
       } catch (e) {}
     }
     if (extractedContracts && extractedContracts.length > 0) {
