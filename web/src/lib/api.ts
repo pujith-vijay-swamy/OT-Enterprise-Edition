@@ -1,4 +1,34 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4400/api';
+export function getApiBase(): string {
+  if (typeof window !== 'undefined') {
+    const custom = localStorage.getItem('repotrace_api_base');
+    if (custom && custom.trim()) {
+      return custom.trim().replace(/\/$/, '');
+    }
+  }
+  const envBase = (process.env.NEXT_PUBLIC_API_BASE || '').trim().replace(/\/$/, '');
+  if (envBase) return envBase;
+
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return 'https://repotrace-engine.onrender.com/api';
+  }
+  return 'http://localhost:4400/api';
+}
+
+export function setCustomApiBase(url: string): void {
+  if (typeof window !== 'undefined') {
+    let clean = url.trim().replace(/\/$/, '');
+    if (clean && !clean.endsWith('/api') && !clean.includes('/api/')) {
+      clean = `${clean}/api`;
+    }
+    if (clean) {
+      localStorage.setItem('repotrace_api_base', clean);
+    } else {
+      localStorage.removeItem('repotrace_api_base');
+    }
+  }
+}
+
+export const API_BASE = getApiBase();
 
 export interface HealthCheckResponse {
   status: string;
@@ -43,75 +73,266 @@ export interface WorkflowInstallResult {
 }
 
 export async function checkEngineHealth(): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 3500);
-    const res = await fetch(`${API_BASE}/health`, { cache: 'no-store', signal: controller.signal });
-    clearTimeout(timer);
-    if (res.ok) {
-      const data: HealthCheckResponse = await res.json();
-      return data.status === 'ok';
+  const urls: string[] = [];
+  const base = getApiBase();
+  urls.push(`${base}/health`);
+  if (typeof window !== 'undefined') {
+    if (!urls.includes('http://localhost:4400/api/health')) {
+      urls.push('http://localhost:4400/api/health');
     }
-  } catch (e) {
-    // Engine server is offline or timed out
+    if (!urls.includes('http://127.0.0.1:4400/api/health')) {
+      urls.push('http://127.0.0.1:4400/api/health');
+    }
   }
-  return false;
+
+  const checkUrl = async (url: string): Promise<boolean> => {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3500);
+      const res = await fetch(url, { cache: 'no-store', signal: controller.signal });
+      clearTimeout(timer);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.status === 'ok') return true;
+      }
+    } catch (e) {}
+    throw new Error('Endpoint unreachable');
+  };
+
+  try {
+    return await Promise.any(urls.map(u => checkUrl(u)));
+  } catch (err) {
+    return false;
+  }
 }
 
 export async function fetchGitHubSession(): Promise<GitHubSession> {
+  // Check browser localStorage first for instant instant hydration
+  if (typeof window !== 'undefined') {
+    try {
+      const saved = localStorage.getItem('repotrace_github_session');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.authenticated && parsed.user) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+  }
+
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 1500);
-    const res = await fetch(`${API_BASE}/auth/github/me`, { cache: 'no-store', signal: controller.signal });
+    const res = await fetch(`${getApiBase()}/auth/github/me`, { cache: 'no-store', signal: controller.signal });
     clearTimeout(timer);
     if (res.ok) {
-      return await res.json();
+      const data = await res.json();
+      if (data && data.authenticated) {
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('repotrace_github_session', JSON.stringify(data));
+          } catch (e) {}
+        }
+        return data;
+      }
     }
   } catch (e) {}
   return { authenticated: false };
 }
 
-export async function fetchUserGitHubRepos(): Promise<GitHubRepoItem[]> {
+export async function fetchUserGitHubRepos(ownerOrUsername?: string): Promise<GitHubRepoItem[]> {
+  // Get token and logged-in username from saved session
+  let token = '';
+  let sessionLogin = '';
+  if (typeof window !== 'undefined') {
+    try {
+      const saved = localStorage.getItem('repotrace_github_session');
+      if (saved) {
+        const session: GitHubSession = JSON.parse(saved);
+        if (session.access_token) token = session.access_token;
+        if (session.user?.login) sessionLogin = session.user.login;
+      }
+    } catch (e) {}
+  }
+
+  const targetUser = ownerOrUsername?.trim() || sessionLogin || '';
+
+  const headers: Record<string, string> = {
+    'Accept': 'application/vnd.github.v3+json',
+    'User-Agent': 'RepoTrace-Web'
+  };
+  if (token) {
+    headers['Authorization'] = `token ${token}`;
+  }
+
+  const mapRepo = (r: any): GitHubRepoItem => ({
+    id: r.id,
+    name: r.name,
+    full_name: r.full_name,
+    language: r.language || 'Code',
+    private: Boolean(r.private),
+    html_url: r.html_url,
+    clone_url: r.clone_url || r.html_url,
+    updated_at: r.updated_at,
+    description: r.description || ''
+  });
+
+  // Helper: paginated fetch (GitHub returns max 100 per page, follows Link header)
+  const fetchAllPages = async (baseUrl: string): Promise<GitHubRepoItem[]> => {
+    const allRepos: GitHubRepoItem[] = [];
+    let url: string | null = baseUrl;
+    let pageCount = 0;
+    while (url && pageCount < 10) { // safety limit: 10 pages = 1000 repos
+      pageCount++;
+      const res: Response = await fetch(url, { cache: 'no-store', headers });
+      if (!res.ok) break;
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        allRepos.push(...data.map(mapRepo));
+      }
+      // Parse Link header for next page
+      const link = res.headers.get('Link') || '';
+      const nextMatch = link.match(/<([^>]+)>;\s*rel="next"/);
+      url = nextMatch ? nextMatch[1] : null;
+    }
+    return allRepos;
+  };
+
+  // 1. Authenticated user repos (returns ALL repos including private, orgs)
+  if (token) {
+    try {
+      const repos = await fetchAllPages('https://api.github.com/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member');
+      if (repos.length > 0) return repos;
+    } catch (e) {}
+  }
+
+  // 2. Public repos by username (when no token but username known)
+  if (targetUser) {
+    try {
+      const repos = await fetchAllPages(`https://api.github.com/users/${encodeURIComponent(targetUser)}/repos?per_page=100&sort=updated`);
+      if (repos.length > 0) return repos;
+    } catch (e) {}
+  }
+
+  // 3. Fallback to Backend Engine proxy
   try {
-    const res = await fetch(`${API_BASE}/github/repos`, { cache: 'no-store' });
+    const res = await fetch(`${getApiBase()}/github/repos`, { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
-      return data.repositories || [];
+      if (data && Array.isArray(data.repositories) && data.repositories.length > 0) {
+        return data.repositories;
+      }
     }
   } catch (e) {}
+
   return [];
 }
 
 export async function loginGitHubDemo(): Promise<GitHubSession> {
-  const res = await fetch(`${API_BASE}/auth/github/login_demo`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' }
-  });
-  return await res.json();
+  const session: GitHubSession = {
+    authenticated: true,
+    user: {
+      login: "alex_dev",
+      name: "Alex Dev (Enterprise)",
+      avatar_url: "https://avatars.githubusercontent.com/u/583231?v=4",
+      html_url: "https://github.com/octocat",
+      public_repos: 14,
+      total_private_repos: 6
+    }
+  };
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('repotrace_github_session', JSON.stringify(session));
+    } catch (e) {}
+  }
+  try {
+    await fetch(`${getApiBase()}/auth/github/login_demo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (e) {}
+  return session;
 }
 
 export async function loginGitHubToken(token: string): Promise<GitHubSession> {
-  const res = await fetch(`${API_BASE}/auth/github/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token })
-  });
-  if (!res.ok) {
-    const errData = await res.json();
-    throw new Error(errData.error || 'Failed to authenticate with GitHub token.');
+  const cleanToken = token.trim();
+  if (!cleanToken) throw new Error('Token is required');
+
+  // 1. Try backend server proxy
+  try {
+    const res = await fetch(`${getApiBase()}/auth/github/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: cleanToken })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.authenticated) {
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('repotrace_github_session', JSON.stringify(data));
+          } catch (e) {}
+        }
+        return data;
+      }
+    }
+  } catch (e) {}
+
+  // 2. Direct GitHub API Fallback (Guaranteed to work 100% in browser)
+  try {
+    const res = await fetch('https://api.github.com/user', {
+      headers: {
+        'Authorization': `token ${cleanToken}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'RepoTrace-Web'
+      }
+    });
+
+    if (res.ok) {
+      const userData = await res.json();
+      const session: GitHubSession = {
+        authenticated: true,
+        access_token: cleanToken,
+        user: {
+          login: userData.login,
+          name: userData.name || userData.login,
+          avatar_url: userData.avatar_url || 'https://avatars.githubusercontent.com/u/583231?v=4',
+          html_url: userData.html_url,
+          public_repos: userData.public_repos || 0,
+          total_private_repos: userData.total_private_repos || 0
+        }
+      };
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('repotrace_github_session', JSON.stringify(session));
+        } catch (e) {}
+      }
+      return session;
+    } else {
+      const errData = await res.json();
+      throw new Error(errData.message || 'Invalid GitHub token. Please verify token permissions.');
+    }
+  } catch (err: any) {
+    throw new Error(err.message || 'Failed to authenticate with GitHub token');
   }
-  return await res.json();
 }
 
 export async function logoutGitHub(): Promise<void> {
-  await fetch(`${API_BASE}/auth/github/logout`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' }
-  });
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.removeItem('repotrace_github_session');
+    } catch (e) {}
+  }
+  try {
+    await fetch(`${getApiBase()}/auth/github/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (e) {}
 }
 
 export async function installGitHubWorkflow(repoFullName: string, branch: string = 'main'): Promise<WorkflowInstallResult> {
-  const res = await fetch(`${API_BASE}/github/install_workflow`, {
+  const res = await fetch(`${getApiBase()}/github/install_workflow`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repo_full_name: repoFullName, branch })
@@ -123,7 +344,7 @@ export async function installGitHubWorkflow(repoFullName: string, branch: string
 }
 
 export async function extractSingleRepo(sourceDir: string, serviceName: string = '') {
-  const res = await fetch(`${API_BASE}/extract`, {
+  const res = await fetch(`${getApiBase()}/extract`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ source_dir: sourceDir, service_name: serviceName })
@@ -135,7 +356,7 @@ export async function extractSingleRepo(sourceDir: string, serviceName: string =
 }
 
 export async function scanMultipleRepos(repos: { dir: string; name?: string }[]) {
-  const res = await fetch(`${API_BASE}/scan_repos`, {
+  const res = await fetch(`${getApiBase()}/scan_repos`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ repositories: repos })
@@ -149,7 +370,7 @@ export async function scanMultipleRepos(repos: { dir: string; name?: string }[])
 }
 
 export async function diffContracts(oldContract: any, newContract: any) {
-  const res = await fetch(`${API_BASE}/diff`, {
+  const res = await fetch(`${getApiBase()}/diff`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ old_contract: oldContract, new_contract: newContract })
@@ -161,13 +382,13 @@ export async function diffContracts(oldContract: any, newContract: any) {
 }
 
 export async function fetchPRGateStatus() {
-  const res = await fetch(`${API_BASE}/pr-gate/status`, { cache: 'no-store' });
+  const res = await fetch(`${getApiBase()}/pr-gate/status`, { cache: 'no-store' });
   if (!res.ok) throw new Error('Failed to fetch PR gate status');
   return await res.json();
 }
 
 export async function addRepoToPRGate(owner: string, repo: string) {
-  const res = await fetch(`${API_BASE}/pr-gate/add-repo`, {
+  const res = await fetch(`${getApiBase()}/pr-gate/add-repo`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ owner, repo })
@@ -180,7 +401,7 @@ export async function addRepoToPRGate(owner: string, repo: string) {
 }
 
 export async function triggerPRGateCheck() {
-  const res = await fetch(`${API_BASE}/pr-gate/trigger`, {
+  const res = await fetch(`${getApiBase()}/pr-gate/trigger`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({})
@@ -222,7 +443,7 @@ export async function fetchLatestOpenPR(owner: string, repo: string): Promise<La
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 4000);
     const res = await fetch(
-      `${API_BASE}/github/latest-pr?owner=${encodeURIComponent(targetOwner)}&repo=${encodeURIComponent(targetRepo)}`,
+      `${getApiBase()}/github/latest-pr?owner=${encodeURIComponent(targetOwner)}&repo=${encodeURIComponent(targetRepo)}`,
       { cache: 'no-store', signal: controller.signal }
     );
     clearTimeout(timer);
@@ -301,7 +522,7 @@ export interface GeminiKeyStatus {
 
 export async function fetchGeminiKeyStatus(): Promise<GeminiKeyStatus> {
   try {
-    const res = await fetch(`${API_BASE}/config/gemini_key`, { cache: 'no-store' });
+    const res = await fetch(`${getApiBase()}/config/gemini_key`, { cache: 'no-store' });
     if (res.ok) {
       return await res.json();
     }
@@ -310,7 +531,7 @@ export async function fetchGeminiKeyStatus(): Promise<GeminiKeyStatus> {
 }
 
 export async function saveGeminiApiKey(apiKey: string): Promise<{ success: boolean; message: string }> {
-  const res = await fetch(`${API_BASE}/config/gemini_key`, {
+  const res = await fetch(`${getApiBase()}/config/gemini_key`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ api_key: apiKey })

@@ -49,15 +49,8 @@ GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "e8895fb22b85e71f86e762
 SESSION_FILE = os.path.join(engine_dir, "..", "cache", ".session.json")
 
 CURRENT_USER_SESSION = {
-    "authenticated": True,
-    "user": {
-        "login": "alex_dev",
-        "name": "Alex Dev (Enterprise)",
-        "avatar_url": "https://avatars.githubusercontent.com/u/583231?v=4",
-        "html_url": "https://github.com/octocat",
-        "public_repos": 14,
-        "total_private_repos": 6
-    },
+    "authenticated": False,
+    "user": None,
     "access_token": ""
 }
 
@@ -364,69 +357,80 @@ _pr_watcher_thread.start()
 MOCK_GITHUB_REPOS = [
     {
         "id": 101,
-        "name": "checkout-frontend",
-        "full_name": "enterprise-org/checkout-frontend",
-        "language": "TypeScript",
+        "name": "UserService",
+        "full_name": "pujith-vijay-swamy/UserService",
+        "language": "Python",
         "private": False,
-        "html_url": "https://github.com/enterprise-org/checkout-frontend",
-        "clone_url": "D:\\OT\\samples\\checkout-frontend",
-        "updated_at": "2026-07-31T12:00:00Z",
-        "description": "Next.js Checkout & Cart Frontend Web Application"
+        "html_url": "https://github.com/pujith-vijay-swamy/UserService",
+        "clone_url": "samples/user-service-v1",
+        "updated_at": "2026-08-20T12:00:00Z",
+        "description": "FastAPI User Authentication & Profile Microservice (Baseline V1)"
     },
     {
         "id": 102,
-        "name": "user-service-v1",
-        "full_name": "enterprise-org/user-service-v1",
-        "language": "Python",
+        "name": "checkout-frontend",
+        "full_name": "25pa1a45a2-ai/checkout-frontend",
+        "language": "TypeScript",
         "private": False,
-        "html_url": "https://github.com/enterprise-org/user-service-v1",
-        "clone_url": "D:\\OT\\samples\\user-service-v1",
-        "updated_at": "2026-07-30T10:00:00Z",
-        "description": "FastAPI User Profile Microservice Baseline V1"
+        "html_url": "https://github.com/25pa1a45a2-ai/checkout-frontend",
+        "clone_url": "samples/checkout-frontend",
+        "updated_at": "2026-08-20T11:00:00Z",
+        "description": "Next.js 16 Checkout & Cart Frontend Web Application"
     },
     {
         "id": 103,
-        "name": "user-service-v2",
-        "full_name": "enterprise-org/user-service-v2",
-        "language": "Python",
-        "private": True,
-        "html_url": "https://github.com/enterprise-org/user-service-v2",
-        "clone_url": "D:\\OT\\samples\\user-service-v2",
-        "updated_at": "2026-07-31T15:30:00Z",
-        "description": "FastAPI User Service Target V2 (Schema Drift Test)"
+        "name": "Order-service-OT",
+        "full_name": "PUJITH-VIJAY-SWAMY-ARAJA/Order-service-OT",
+        "language": "TypeScript",
+        "private": False,
+        "html_url": "https://github.com/PUJITH-VIJAY-SWAMY-ARAJA/Order-service-OT",
+        "clone_url": "samples/order-service",
+        "updated_at": "2026-08-19T14:15:00Z",
+        "description": "Express.js Order Fulfillment & Processing Microservice"
     },
     {
         "id": 104,
-        "name": "payment-gateway-service",
-        "full_name": "enterprise-org/payment-gateway-service",
+        "name": "Payment-gateway-service",
+        "full_name": "shaikshakeera72-lgtm/Payment-gateway-service",
         "language": "Python",
-        "private": True,
-        "html_url": "https://github.com/enterprise-org/payment-gateway-service",
-        "clone_url": "D:\\OT\\samples\\payment-gateway-service",
-        "updated_at": "2026-07-29T18:20:00Z",
-        "description": "Flask Payment Processing Microservice"
+        "private": False,
+        "html_url": "https://github.com/shaikshakeera72-lgtm/Payment-gateway-service",
+        "clone_url": "samples/payment-gateway-service",
+        "updated_at": "2026-08-19T10:20:00Z",
+        "description": "Flask Payment Gateway & Tokenization Microservice"
     },
     {
         "id": 105,
-        "name": "order-service",
-        "full_name": "enterprise-org/order-service",
+        "name": "Notification-service",
+        "full_name": "saradhavaranasi15/Notification-service",
         "language": "TypeScript",
         "private": False,
-        "html_url": "https://github.com/enterprise-org/order-service",
-        "clone_url": "D:\\OT\\samples\\order-service",
-        "updated_at": "2026-07-28T14:15:00Z",
-        "description": "Express.js Order Fulfillment Microservice"
+        "html_url": "https://github.com/saradhavaranasi15/Notification-service",
+        "clone_url": "samples/notification-service",
+        "updated_at": "2026-08-18T09:40:00Z",
+        "description": "Node.js Email & Push Notification Worker Service"
     },
     {
         "id": 106,
-        "name": "notification-service",
-        "full_name": "enterprise-org/notification-service",
+        "name": "OT-Enterprise-Edition",
+        "full_name": "pujith-vijay-swamy/OT-Enterprise-Edition",
         "language": "TypeScript",
         "private": False,
-        "html_url": "https://github.com/enterprise-org/notification-service",
-        "clone_url": "D:\\OT\\samples\\notification-service",
-        "updated_at": "2026-07-27T09:40:00Z",
-        "description": "Node.js Email & Push Notification Worker"
+        "html_url": "https://github.com/pujith-vijay-swamy/OT-Enterprise-Edition",
+        "clone_url": "samples/checkout-frontend",
+        "updated_at": "2026-08-24T10:00:00Z",
+        "description": "RepoTrace AI Main Enterprise Dashboard & Microservice Engine"
+    },
+    {
+        "id": 107,
+        "name": "user-service-v2",
+        "full_name": "pujith-vijay-swamy/user-service-v2",
+        "language": "Python",
+        "private": True,
+        "html_url": "https://github.com/pujith-vijay-swamy/UserService/tree/feature/v2-upgrade",
+        "clone_url": "samples/user-service-v2",
+        "updated_at": "2026-08-24T15:30:00Z",
+        "description": "FastAPI User Service Target V2 (Active PR #16 Schema Drift)"
     }
 ]
 
@@ -465,7 +469,7 @@ def resolve_repo_path(raw_path: str, custom_name: str = "") -> Tuple[str, str, s
         service_name = custom_name.strip() or inferred_name
         return abs_local, service_name, abs_local
 
-    # 2. Check if cleaned or custom_name matches a sample microservice in D:\OT\samples\
+    # 2. Check if cleaned or custom_name matches a sample microservice in samples/
     samples_dir = os.path.abspath(os.path.join(engine_dir, "..", "samples"))
     possible_names = [custom_name.strip(), cleaned, cleaned.split('/')[-1], cleaned.split('\\')[-1]]
     for name in possible_names:
@@ -475,15 +479,21 @@ def resolve_repo_path(raw_path: str, custom_name: str = "") -> Tuple[str, str, s
                 service_name = custom_name.strip() or name
                 return sample_target, service_name, sample_target
 
+    def normalize_name(s: str) -> str:
+        return re.sub(r'[^a-zA-Z0-9]', '', s).lower()
+
     if os.path.exists(samples_dir):
         for s_item in os.listdir(samples_dir):
             s_full = os.path.join(samples_dir, s_item)
             if os.path.isdir(s_full):
-                s_norm = s_item.lower().replace('_', '-').replace('.git', '')
+                s_norm = normalize_name(s_item)
+                s_base = normalize_name(s_item.replace('-v1', '').replace('-v2', ''))
                 for name in possible_names:
-                    if name and name.lower().replace('_', '-').replace('.git', '') in [s_norm, s_norm.replace('-v1', '').replace('-v2', '')]:
-                        service_name = custom_name.strip() or s_item
-                        return s_full, service_name, s_full
+                    if name:
+                        n_norm = normalize_name(name)
+                        if n_norm and (n_norm in s_norm or s_norm in n_norm or n_norm in s_base or s_base in n_norm):
+                            service_name = custom_name.strip() or s_item
+                            return s_full, service_name, s_full
 
     # 3. Handle GitHub URLs or owner/repo shorthand
     is_github_url = cleaned.startswith(("http://", "https://", "git@", "github.com"))
@@ -503,9 +513,15 @@ def resolve_repo_path(raw_path: str, custom_name: str = "") -> Tuple[str, str, s
         service_name = custom_name.strip() or inferred_name
 
         # Check sample fallback first before cloning mock names
-        sample_fallback = os.path.join(samples_dir, inferred_name)
-        if os.path.exists(sample_fallback):
-            return sample_fallback, service_name, cleaned
+        if os.path.exists(samples_dir):
+            for s_item in os.listdir(samples_dir):
+                s_full = os.path.join(samples_dir, s_item)
+                if os.path.isdir(s_full):
+                    s_norm = normalize_name(s_item)
+                    s_base = normalize_name(s_item.replace('-v1', '').replace('-v2', ''))
+                    n_norm = normalize_name(inferred_name)
+                    if n_norm and (n_norm in s_norm or s_norm in n_norm or n_norm in s_base or s_base in n_norm):
+                        return s_full, service_name, cleaned
 
         local_target_dir = os.path.join(CACHE_DIR, repo_identifier)
 
@@ -514,6 +530,7 @@ def resolve_repo_path(raw_path: str, custom_name: str = "") -> Tuple[str, str, s
             cmd = ["git", "clone", "--depth", "1", clone_url, local_target_dir]
             res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             if res.returncode != 0 and not os.path.exists(local_target_dir):
+                sample_fallback = os.path.join(samples_dir, inferred_name)
                 if os.path.exists(sample_fallback):
                     return sample_fallback, service_name, cleaned
                 raise ValueError(f"Failed to clone GitHub repository '{raw_path}': {res.stderr}")
@@ -572,37 +589,43 @@ class RequestHandler(BaseHTTPRequestHandler):
                 token = CURRENT_USER_SESSION.get("access_token", "")
                 if token:
                     try:
-                        req = urllib.request.Request(
-                            "https://api.github.com/user/repos?per_page=50&sort=updated",
-                            headers={
-                                "Authorization": f"token {token}",
-                                "Accept": "application/vnd.github.v3+json",
-                                "User-Agent": "RepoTrace-AI-Enterprise"
-                            }
-                        )
-                        with urllib.request.urlopen(req) as response:
-                            remote_repos = json.loads(response.read().decode('utf-8'))
-                            repos_list = [
-                                {
-                                    "id": r.get("id"),
-                                    "name": r.get("name"),
-                                    "full_name": r.get("full_name"),
-                                    "language": r.get("language") or "TypeScript",
-                                    "private": r.get("private", False),
-                                    "html_url": r.get("html_url"),
-                                    "clone_url": r.get("clone_url") or r.get("html_url"),
-                                    "updated_at": r.get("updated_at"),
-                                    "description": r.get("description") or ""
+                        all_repos = []
+                        page = 1
+                        while page <= 5:  # up to 500 repos
+                            req = urllib.request.Request(
+                                f"https://api.github.com/user/repos?per_page=100&sort=updated&page={page}&affiliation=owner,collaborator,organization_member",
+                                headers={
+                                    "Authorization": f"token {token}",
+                                    "Accept": "application/vnd.github.v3+json",
+                                    "User-Agent": "RepoTrace-AI-Enterprise"
                                 }
-                                for r in remote_repos
-                            ]
-                            self.send_json_response(200, {"repositories": repos_list, "source": "github_api"})
-                            return
+                            )
+                            with urllib.request.urlopen(req, timeout=10) as response:
+                                remote_repos = json.loads(response.read().decode('utf-8'))
+                                if not remote_repos:
+                                    break
+                                for r in remote_repos:
+                                    all_repos.append({
+                                        "id": r.get("id"),
+                                        "name": r.get("name"),
+                                        "full_name": r.get("full_name"),
+                                        "language": r.get("language") or "Code",
+                                        "private": r.get("private", False),
+                                        "html_url": r.get("html_url"),
+                                        "clone_url": r.get("clone_url") or r.get("html_url"),
+                                        "updated_at": r.get("updated_at"),
+                                        "description": r.get("description") or ""
+                                    })
+                                if len(remote_repos) < 100:
+                                    break
+                                page += 1
+                        self.send_json_response(200, {"repositories": all_repos, "source": "github_api"})
+                        return
                     except Exception as e:
                         print(f"Error querying GitHub API with token: {e}")
                 
-                # Return enterprise repositories list
-                self.send_json_response(200, {"repositories": MOCK_GITHUB_REPOS, "source": "cached_enterprise_mesh"})
+                # No token — return empty list (frontend shows "Log in to see your repos")
+                self.send_json_response(200, {"repositories": [], "source": "unauthenticated"})
 
             elif self.path == '/api/pr-gate/status':
                 self.send_json_response(200, {

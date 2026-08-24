@@ -49,16 +49,16 @@ interface TopologyCanvasProps {
 
 // Ultra-Brutalist Microservice Node Component
 const ServiceNodeComponent = ({ data }: { data: any }) => {
-  const isV2 = (data.id.includes('v2') || data.is_ghost) && Boolean(data.has_open_pr);
-  const isV1 = data.id.includes('v1') && Boolean(data.has_open_pr);
-  const isBranchNode = (isV1 || isV2) && Boolean(data.has_open_pr);
-  const isGhost = isV2 && Boolean(data.has_open_pr);
-  const prNumber = data.has_open_pr ? (data.pr_number || 0) : 0;
-  const headBranch = data.has_open_pr ? (data.head_branch || 'main') : 'main';
+  const isGhost = Boolean(data.is_ghost || data.is_ghost_pr);
+  const isV2 = isGhost || Boolean(data.id?.toLowerCase().endsWith('-v2') || data.id?.toLowerCase().includes('pr-'));
+  const isV1 = Boolean(data.id?.toLowerCase().endsWith('-v1') || data.is_v1_baseline);
+  const isBranchNode = (isV1 || isV2) && Boolean(data.has_open_pr || isGhost);
+  const prNumber = data.pr_number || (data.has_open_pr ? (data.pr_number || 0) : 0);
+  const headBranch = data.head_branch || (data.has_open_pr ? (data.head_branch || 'main') : 'main');
 
-  const isBreaking = data.health === 'BREAKING';
-  const isWarn = data.health === 'WARN';
-  const isUnlinked = data.health === 'UNLINKED';
+  const isBreaking = data.health === 'BREAKING' || isGhost;
+  const isWarn = data.health === 'WARN' && !isGhost;
+  const isUnlinked = data.health === 'UNLINKED' && !isGhost;
 
   // Derive the canonical repo name (strip -v1 / -v2 suffix)
   const canonicalName = data.id.replace(/-v[12]$/i, '');
@@ -67,12 +67,8 @@ const ServiceNodeComponent = ({ data }: { data: any }) => {
   let badgeStyle = 'bg-emerald-950 text-emerald-400 border border-emerald-700 font-bold';
   let healthDotColor = 'bg-emerald-500';
 
-  if (isGhost) {
+  if (isGhost || isBreaking) {
     borderStyle = 'border-2 border-dashed border-rose-500 bg-[#1c0609]/95 backdrop-blur-md shadow-[0_0_25px_rgba(244,63,94,0.4)] ring-2 ring-rose-500/50';
-    badgeStyle = 'bg-rose-950 text-rose-300 border border-rose-600 font-extrabold animate-pulse';
-    healthDotColor = 'bg-rose-500 animate-ping';
-  } else if (isBreaking) {
-    borderStyle = 'border-2 border-rose-600 bg-[#170507] shadow-[4px_4px_0px_0px_#f43f5e]';
     badgeStyle = 'bg-rose-950 text-rose-300 border border-rose-600 font-extrabold animate-pulse';
     healthDotColor = 'bg-rose-500 animate-ping';
   } else if (isWarn) {
@@ -197,7 +193,7 @@ const ServiceNodeComponent = ({ data }: { data: any }) => {
         </div>
 
         <span className={`text-[10px] font-bold px-2 py-0.5 uppercase shrink-0 ${badgeStyle}`}>
-          {data.health}
+          {isGhost ? 'BREAKING' : data.health}
         </span>
       </div>
 
@@ -343,6 +339,53 @@ const CustomHealthEdge = ({
 const nodeTypes = { serviceNode: ServiceNodeComponent };
 const edgeTypes = { healthEdge: CustomHealthEdge };
 
+// Dynamic Auto-Layout Algorithm for Clean 3-Tier Enterprise Microservice Mesh Layout
+function calculateAutoLayout(
+  services: ServiceNodeData[],
+  savedPositions?: Record<string, { x: number; y: number }>
+): Record<string, { x: number; y: number }> {
+  const positions: Record<string, { x: number; y: number }> = {};
+  
+  let consumerRow = 0;
+  let fullstackRow = 0;
+  let producerRow = 0;
+
+  const CONSUMER_X = 60;
+  const FULLSTACK_X = 520;
+  const PRODUCER_X = 980;
+
+  const Y_START = 80;
+  const Y_STEP = 360;
+
+  services.forEach((s, idx) => {
+    // If user saved a custom dragged coordinate, preserve it
+    if (savedPositions && savedPositions[s.id] && savedPositions[s.id].x > 0 && savedPositions[s.id].y > 0) {
+      positions[s.id] = savedPositions[s.id];
+      return;
+    }
+
+    const isGhost = Boolean(s.is_ghost || s.is_ghost_pr || s.id.toLowerCase().includes('-v2'));
+    const isConsumer = s.service_type === 'consumer' || ((s.consumer_calls_count || 0) > 0 && (s.routes_count || 0) === 0);
+    const isFullstack = s.service_type === 'fullstack' || ((s.consumer_calls_count || 0) > 0 && (s.routes_count || 0) > 0);
+
+    if (isGhost) {
+      positions[s.id] = { x: PRODUCER_X, y: Y_START + Math.max(producerRow, 1) * Y_STEP };
+      producerRow += 1;
+    } else if (isConsumer) {
+      positions[s.id] = { x: CONSUMER_X, y: Y_START + consumerRow * Y_STEP };
+      consumerRow += 1;
+    } else if (isFullstack) {
+      positions[s.id] = { x: FULLSTACK_X, y: Y_START + fullstackRow * Y_STEP };
+      fullstackRow += 1;
+    } else {
+      positions[s.id] = { x: PRODUCER_X, y: Y_START + producerRow * Y_STEP };
+      producerRow += 1;
+    }
+  });
+
+  return positions;
+}
+
 export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
   services,
   edges,
@@ -434,18 +477,10 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
     return impacted;
   }, [blastRadiusMode, selectedBlastSourceId, edges]);
 
-  // Clean 3-Tier Layered Architecture Default Layout Grid
-  const defaultPositions: Record<string, { x: number; y: number }> = useMemo(() => ({
-    'checkout-frontend': { x: 60, y: 180 },
-    'payment-gateway': { x: 480, y: 100 },
-    'payment-gateway-service': { x: 480, y: 100 },
-    'notification-service': { x: 480, y: 340 },
-    'order-service': { x: 480, y: 560 },
-    'user-service-v1': { x: 900, y: 100 },
-    'user-service-v2': { x: 900, y: 320 },
-    'user-service': { x: 900, y: 100 },
-    'analytics-worker': { x: 60, y: 460 }
-  }), []);
+  // Dynamic layout grid positions with zero overlapping
+  const autoLayoutPositions: Record<string, { x: number; y: number }> = useMemo(() => {
+    return calculateAutoLayout(servicesWithDynamicHealth, savedPositions);
+  }, [servicesWithDynamicHealth, savedPositions]);
 
   const validServiceIds = useMemo(() => new Set(servicesWithDynamicHealth.map(s => s.id)), [servicesWithDynamicHealth]);
 
@@ -544,9 +579,9 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
         const isSpotlightedNode = hasEdgeHighlights && spotlightServiceIds.has(s.id);
         const isDimmedNode = hasEdgeHighlights && !spotlightServiceIds.has(s.id);
 
-        const pos = existing?.position || (savedPositions && savedPositions[s.id]) || defaultPositions[s.id] || {
-          x: s.service_type === 'consumer' ? 60 : (s.service_type === 'fullstack' ? 480 : 900),
-          y: 120 + idx * 180
+        const pos = (savedPositions && savedPositions[s.id]) || existing?.position || autoLayoutPositions[s.id] || {
+          x: s.service_type === 'consumer' ? 60 : (s.service_type === 'fullstack' ? 520 : 980),
+          y: 80 + idx * 360
         };
 
         return {
@@ -567,7 +602,7 @@ export const TopologyCanvas: React.FC<TopologyCanvasProps> = ({
         };
       });
     });
-  }, [servicesWithDynamicHealth, savedPositions, defaultPositions, blastRadiusMode, selectedBlastSourceId, impactedServiceIds, onRemoveService, setNodes, activePr, hasEdgeHighlights, spotlightServiceIds]);
+  }, [servicesWithDynamicHealth, savedPositions, autoLayoutPositions, blastRadiusMode, selectedBlastSourceId, impactedServiceIds, onRemoveService, setNodes, activePr, hasEdgeHighlights, spotlightServiceIds]);
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {

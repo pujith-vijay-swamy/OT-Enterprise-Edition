@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Network, GitCompare, ShieldAlert, Cpu, RefreshCw, FolderPlus, Server, Activity, LogOut, UserCheck, Key, Check, AlertCircle } from 'lucide-react';
-import { GitHubSession, loginGitHubToken } from '../lib/api';
+import { Network, GitCompare, ShieldAlert, Cpu, RefreshCw, FolderPlus, Server, Activity, LogOut, UserCheck, Key, Check, AlertCircle, Link, Globe, Wifi } from 'lucide-react';
+import { GitHubSession, loginGitHubToken, getApiBase, setCustomApiBase } from '../lib/api';
 import JarvisLogo from './JarvisLogo';
 
 interface HeaderProps {
@@ -54,6 +54,12 @@ export const Header: React.FC<HeaderProps> = ({
   const [patToken, setPatToken] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+
+  // Backend Engine Endpoint Configuration Modal State
+  const [isEngineModalOpen, setIsEngineModalOpen] = useState(false);
+  const [customEngineUrl, setCustomEngineUrl] = useState('');
+  const [isTestingEngine, setIsTestingEngine] = useState(false);
+  const [engineTestStatus, setEngineTestStatus] = useState<{ success: boolean; message: string } | null>(null);
 
   const handleTokenSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,14 +126,22 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Engine Status Indicator */}
-          <div className="hidden 2xl:flex items-center gap-2 px-3 py-1.5 bg-[#171717] border-2 border-[#262626] text-xs">
-            <Server className={`w-3.5 h-3.5 ${engineOnline ? 'text-emerald-400' : 'text-amber-400'}`} />
+          {/* Engine Status Indicator (Clickable to configure cloud endpoint) */}
+          <button
+            onClick={() => {
+              setCustomEngineUrl(getApiBase());
+              setEngineTestStatus(null);
+              setIsEngineModalOpen(true);
+            }}
+            title="Click to configure Render / Cloud Engine Backend URL"
+            className="flex items-center gap-2 px-3 py-1.5 bg-[#171717] hover:bg-[#222222] border-2 border-[#262626] hover:border-neutral-500 text-xs transition-colors cursor-pointer"
+          >
+            <Server className={`w-3.5 h-3.5 ${engineOnline ? 'text-emerald-400 animate-pulse' : 'text-amber-400'}`} />
             <span className="text-neutral-400">ENGINE:</span>
             <span className={`font-bold ${engineOnline ? 'text-emerald-400' : 'text-amber-400'}`}>
               {engineOnline ? 'ACTIVE' : 'STANDBY'}
             </span>
-          </div>
+          </button>
         </div>
 
         {/* Navigation Tabs */}
@@ -306,6 +320,145 @@ export const Header: React.FC<HeaderProps> = ({
               <Check className="w-3.5 h-3.5 text-emerald-400" />
               QUICK DEMO SESSION (@alex_dev)
             </button>
+
+          </div>
+        </div>
+      )}
+
+      {/* Backend Engine URL Configuration Modal */}
+      {isEngineModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 font-mono">
+          <div className="bg-[#0a0a0a] border-2 border-white w-full max-w-lg p-5 shadow-[6px_6px_0px_0px_#ffffff] space-y-4">
+            
+            <div className="flex items-center justify-between border-b-2 border-neutral-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Server className="w-5 h-5 text-emerald-400" />
+                <h2 className="text-sm font-extrabold text-white uppercase tracking-wider">
+                  Python AST Engine Configuration
+                </h2>
+              </div>
+              <button
+                onClick={() => setIsEngineModalOpen(false)}
+                className="text-neutral-500 hover:text-white text-xs font-bold px-2 py-1 border border-neutral-700 hover:border-white uppercase"
+              >
+                CLOSE [ESC]
+              </button>
+            </div>
+
+            <p className="text-xs text-neutral-400 leading-relaxed">
+              Connect your Next.js frontend to your cloud Python AST Engine hosted on <strong>Render</strong> (e.g. <code className="text-emerald-400 font-bold">https://repotrace-engine.onrender.com/api</code>) or local development server.
+            </p>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-neutral-300 uppercase">
+                Backend API Endpoint URL
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="https://your-service.onrender.com/api"
+                  value={customEngineUrl}
+                  onChange={e => setCustomEngineUrl(e.target.value)}
+                  className="w-full bg-black border-2 border-neutral-700 px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-400 pr-24"
+                />
+                <button
+                  type="button"
+                  onClick={() => setCustomEngineUrl('http://localhost:4400/api')}
+                  className="absolute right-1 top-1 bottom-1 px-2 text-[10px] bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-bold uppercase border border-neutral-600 cursor-pointer"
+                >
+                  Localhost
+                </button>
+              </div>
+              <p className="text-[10px] text-neutral-500">
+                Current Active Endpoint: <code className="text-neutral-300">{getApiBase()}</code>
+              </p>
+            </div>
+
+            {engineTestStatus && (
+              <div className={`p-2.5 text-xs font-bold border-2 flex items-center gap-2 ${
+                engineTestStatus.success
+                  ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300'
+                  : 'bg-rose-950/80 border-rose-600 text-rose-300'
+              }`}>
+                {engineTestStatus.success ? (
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                )}
+                <span>{engineTestStatus.message}</span>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                disabled={isTestingEngine || !customEngineUrl.trim()}
+                onClick={async () => {
+                  setIsTestingEngine(true);
+                  setEngineTestStatus(null);
+                  let clean = customEngineUrl.trim().replace(/\/$/, '');
+                  if (clean && !clean.endsWith('/api') && !clean.includes('/api/')) {
+                    clean = `${clean}/api`;
+                  }
+                  try {
+                    const controller = new AbortController();
+                    const timer = setTimeout(() => controller.abort(), 6000);
+                    const res = await fetch(`${clean}/health`, { cache: 'no-store', signal: controller.signal });
+                    clearTimeout(timer);
+                    if (res.ok) {
+                      const data = await res.json();
+                      setCustomApiBase(clean);
+                      setEngineTestStatus({
+                        success: true,
+                        message: `Successfully connected to Engine! (${data.engine || 'Active'})`
+                      });
+                      onRefresh();
+                      setTimeout(() => {
+                        setIsEngineModalOpen(false);
+                      }, 1200);
+                    } else {
+                      throw new Error(`Engine returned status ${res.status}`);
+                    }
+                  } catch (err: any) {
+                    setEngineTestStatus({
+                      success: false,
+                      message: `Connection failed: ${err.message || 'Engine unreachable. If hosted on Render free tier, it may take 30s to wake up.'}`
+                    });
+                  } finally {
+                    setIsTestingEngine(false);
+                  }
+                }}
+                className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 border-2 border-white text-white text-xs font-extrabold uppercase shadow-[2px_2px_0px_0px_#ffffff] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40"
+              >
+                {isTestingEngine ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    TESTING CONNECTION...
+                  </>
+                ) : (
+                  <>
+                    <Wifi className="w-3.5 h-3.5" />
+                    TEST & CONNECT
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomApiBase('');
+                  setCustomEngineUrl(getApiBase());
+                  setEngineTestStatus({
+                    success: true,
+                    message: 'Reset to default endpoint settings.'
+                  });
+                  onRefresh();
+                }}
+                className="px-3 py-2 bg-[#171717] hover:bg-[#262626] border-2 border-neutral-700 text-xs font-bold text-neutral-300 uppercase cursor-pointer"
+              >
+                RESET
+              </button>
+            </div>
 
           </div>
         </div>

@@ -12,7 +12,7 @@ interface RepoInput {
 interface ScanReposModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onScanComplete: (contracts: any[], topology: any, reposToScan?: { dir: string; name: string }[]) => void;
+  onScanComplete: (contracts: any[], topology: any, reposToScan?: { dir: string; name: string }[], isExplicitUserScan?: boolean) => void;
   githubSession: GitHubSession;
 }
 
@@ -68,14 +68,20 @@ export const ScanReposModal: React.FC<ScanReposModalProps> = ({
     setCustomRepoInput('');
   };
 
-  // Fetch repositories from GitHub API on modal open (do not auto-select to avoid lag)
+  // Fetch repositories from GitHub API on modal open
   useEffect(() => {
     if (isOpen) {
+      setGithubRepos([]); // Clear stale repos to avoid showing old/hardcoded data
+      setSelectedRepoIds(new Set());
       setLoadingRepos(true);
+      setErrorMsg(null);
       fetchUserGitHubRepos()
         .then(repos => {
-          setGithubRepos(repos);
+          if (repos && repos.length > 0) {
+            setGithubRepos(repos);
+          }
         })
+        .catch(() => {})
         .finally(() => setLoadingRepos(false));
     }
   }, [isOpen]);
@@ -183,7 +189,7 @@ export const ScanReposModal: React.FC<ScanReposModalProps> = ({
         throw new Error('No microservice AST definitions were found at the provided paths.');
       }
 
-      onScanComplete(result.contracts, result.topology, reposToScan);
+      onScanComplete(result.contracts, result.topology, reposToScan, true);
       onClose();
     } catch (err: any) {
       setErrorMsg(err.message || 'Error extracting repository contracts');
