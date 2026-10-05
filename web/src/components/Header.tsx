@@ -253,8 +253,10 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={() => {
                 const clientId = process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID || 'Ov23liH6AZE8ReibuQmV';
-                const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
-                const redirectUri = encodeURIComponent(`${baseUrl}/api/auth/callback/github`);
+                const baseUrl = (typeof window !== 'undefined' && window.location.origin && window.location.origin !== 'null')
+                  ? window.location.origin
+                  : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+                const redirectUri = encodeURIComponent(`${baseUrl.replace(/\/$/, '')}/api/auth/callback/github`);
                 window.location.href = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=repo,user`;
               }}
               className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 border-2 border-white text-white text-xs font-extrabold uppercase flex items-center justify-center gap-2 shadow-[2px_2px_0px_0px_#ffffff] cursor-pointer"
