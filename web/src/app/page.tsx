@@ -149,11 +149,6 @@ export default function Dashboard() {
           localStorage.setItem('repotrace_deleted_services', JSON.stringify(unblocked));
         } catch (e) {}
       }
-
-      const hasUserService = reposToScan.some(r => r.name.toLowerCase().includes('user') || r.dir.toLowerCase().includes('user'));
-      if (hasUserService && !reposToScan.some(r => r.name === 'user-service-v2' || r.dir.includes('user-service-v2'))) {
-        reposToScan.push({ dir: 'samples/user-service-v2', name: 'user-service-v2' });
-      }
     }
 
     scanMultipleRepos(reposToScan)
@@ -168,24 +163,28 @@ export default function Dashboard() {
       });
   };
 
-  const targetOwner = process.env.NEXT_PUBLIC_GITHUB_OWNER || githubSession?.user?.login || 'pujith-vijay-swamy';
-  const targetRepo = process.env.NEXT_PUBLIC_GITHUB_REPO || 'UserService';
+  const targetOwner = process.env.NEXT_PUBLIC_GITHUB_OWNER || 
+    (activeReposToScan[0]?.dir?.includes('/') ? activeReposToScan[0].dir.split('/')[0] : (githubSession?.user?.login || ''));
+  const targetRepo = process.env.NEXT_PUBLIC_GITHUB_REPO || 
+    (activeReposToScan[0]?.dir?.includes('/') ? activeReposToScan[0].dir.split('/')[1] : (activeReposToScan[0]?.name || ''));
 
   // Initial load of latest PR telemetry (does NOT overwrite scanned services)
   useEffect(() => {
-    fetchLatestOpenPR(targetOwner, targetRepo).then(pr => {
-      if (pr) {
-        setActivePr({
-          has_open_pr: Boolean(pr.has_open_pr),
-          pr_number: pr.has_open_pr ? (pr.number || 0) : 0,
-          head_branch: pr.has_open_pr ? (pr.head_branch || 'main') : 'main',
-          base_branch: pr.base_branch || 'main',
-          pr_url: pr.has_open_pr ? (pr.html_url || '') : '',
-          all_prs: pr.all_prs || []
-        });
-      }
-    }).catch(() => {});
-  }, []);
+    if (targetOwner && targetRepo) {
+      fetchLatestOpenPR(targetOwner, targetRepo).then(pr => {
+        if (pr) {
+          setActivePr({
+            has_open_pr: Boolean(pr.has_open_pr),
+            pr_number: pr.has_open_pr ? (pr.number || 0) : 0,
+            head_branch: pr.has_open_pr ? (pr.head_branch || 'main') : 'main',
+            base_branch: pr.base_branch || 'main',
+            pr_url: pr.has_open_pr ? (pr.html_url || '') : '',
+            all_prs: pr.all_prs || []
+          });
+        }
+      }).catch(() => {});
+    }
+  }, [targetOwner, targetRepo]);
 
   // Persist githubSession to localStorage on every change
   useEffect(() => {

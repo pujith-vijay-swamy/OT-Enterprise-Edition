@@ -236,8 +236,12 @@ class PythonASTParser(BaseParser):
                     parts.append(elt.value)
                 elif hasattr(ast, "Str") and isinstance(elt, getattr(ast, "Str")):
                     parts.append(getattr(elt, "s", ""))
+                elif isinstance(elt, ast.FormattedValue):
+                    val_str = self._ast_to_str(elt.value)
+                    parts.append(f"{{{val_str}}}" if val_str else "{param}")
                 else:
-                    parts.append("{param}")
+                    val_str = self._ast_to_str(elt)
+                    parts.append(f"{{{val_str}}}" if val_str else "{param}")
             return "".join(parts)
         return ""
 

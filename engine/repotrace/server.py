@@ -162,8 +162,10 @@ def auto_enable_pr_gate_for_repo(raw_path: str):
             parts = cleaned.split('github.com/')[1].replace('.git', '').rstrip('/').split('/')
             if len(parts) >= 2:
                 owner, repo = parts[0], parts[1]
-        elif 'UserService' in cleaned or 'user-service' in cleaned:
-            owner, repo = "pujith-vijay-swamy", "UserService"
+        elif '/' in cleaned:
+            parts = cleaned.strip('/').split('/')
+            if len(parts) >= 2:
+                owner, repo = parts[-2], parts[-1]
         
         if owner and repo:
             entry = {"owner": owner, "repo": repo}
@@ -195,29 +197,15 @@ def github_api_request(url: str, token: str, method: str = "GET", data: dict = N
     with urllib.request.urlopen(req, timeout=15) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
-def run_pr_check_for_repo(repo_url: str, pr_author: str = "pujith-vijay-swamy"):
+def run_pr_check_for_repo(repo_url: str, pr_author: str = ""):
     """Clone/fetch a repo and run RepoTrace pr-check, return (is_blocked, markdown)."""
     from repotrace.cli import extract_contract, generate_pr_comment_markdown
 
     # Resolve local repo path (clone or fetch)
     repo_path, _, _ = resolve_repo_path(repo_url)
 
-    # Extract head contract from PR code (or user-service-v2 sample for PR breaking check)
-    v2_path = os.path.join(engine_dir, "..", "samples", "user-service-v2")
-    baseline_path = os.path.join(engine_dir, "..", "samples", "user-service-v1")
-
     c_head = extract_contract(repo_path, output_file="")
-
-    # If repository is UserService or user service, ensure head uses v2 schema code
-    if os.path.exists(v2_path) and ("user" in repo_url.lower() or "userservice" in repo_url.lower()):
-        c_head = extract_contract(v2_path, service_name="user-service-v2", output_file="")
-
-    # Baseline v1 contract
-    if os.path.exists(baseline_path) and c_head.service_name != "checkout-frontend":
-        c_base = extract_contract(baseline_path, service_name="user-service-v1", output_file="")
-        c_base.service_name = c_head.service_name
-    else:
-        c_base = c_head
+    c_base = c_head
 
     # 1. Self diff
     diff_engine = ContractDiffEngine()
@@ -268,7 +256,7 @@ def pr_watcher_check_repo(owner: str, repo: str, token: str):
         for pr in prs:
             pr_number = pr["number"]
             head_sha = pr["head"]["sha"]
-            pr_author = pr.get("user", {}).get("login", "pujith-vijay-swamy")
+            pr_author = pr.get("user", {}).get("login", "")
             state_key = f"{owner}/{repo}#{pr_number}#{head_sha}"
 
             if state_key in PR_GATE_PROCESSED:

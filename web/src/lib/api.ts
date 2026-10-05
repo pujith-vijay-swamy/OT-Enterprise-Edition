@@ -435,8 +435,9 @@ export interface LatestPRInfo {
 }
 
 export async function fetchLatestOpenPR(owner: string, repo: string): Promise<LatestPRInfo | null> {
-  const targetOwner = owner || 'pujith-vijay-swamy';
-  const targetRepo = repo || 'UserService';
+  const targetOwner = (owner || '').trim();
+  const targetRepo = (repo || '').trim();
+  if (!targetOwner || !targetRepo) return null;
 
   // 1. Try Python Engine backend proxy
   try {
