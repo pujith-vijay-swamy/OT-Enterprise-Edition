@@ -212,7 +212,9 @@ class PythonASTParser(BaseParser):
     def _is_dynamic_str(self, node: Optional[ast.AST]) -> bool:
         if node is None:
             return False
-        if isinstance(node, (ast.Constant, ast.Str)):
+        if isinstance(node, ast.Constant):
+            return False
+        if hasattr(ast, "Str") and isinstance(node, getattr(ast, "Str")):
             return False
         if isinstance(node, ast.JoinedStr): # f-string e.g. f"/api/users/{id}"
             return True
@@ -225,13 +227,15 @@ class PythonASTParser(BaseParser):
     def _eval_str_literal(self, node: ast.AST) -> str:
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
             return node.value
-        elif isinstance(node, ast.Str):
-            return node.s
+        elif hasattr(ast, "Str") and isinstance(node, getattr(ast, "Str")):
+            return getattr(node, "s", "")
         elif isinstance(node, ast.JoinedStr):  # f-strings e.g. f"/api/users/{user_id}"
             parts = []
             for elt in node.values:
-                if isinstance(elt, (ast.Constant, ast.Str)):
-                    parts.append(self._eval_str_literal(elt))
+                if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                    parts.append(elt.value)
+                elif hasattr(ast, "Str") and isinstance(elt, getattr(ast, "Str")):
+                    parts.append(getattr(elt, "s", ""))
                 else:
                     parts.append("{param}")
             return "".join(parts)
