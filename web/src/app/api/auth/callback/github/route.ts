@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
   const error = searchParams.get('error');
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4400/api';
+  const origin = new URL(request.url).origin;
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || origin || 'http://localhost:3000').replace(/\/$/, '');
+  const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'https://ot-enterprise-edition.onrender.com/api';
 
   if (error || !code) {
     return NextResponse.redirect(`${appUrl}/?auth_error=${encodeURIComponent(error || 'No authorization code returned')}`);
